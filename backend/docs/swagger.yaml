@@ -1,0 +1,2856 @@
+basePath: /v1
+definitions:
+  domain.AnswerResultData:
+    properties:
+      is_correct:
+        type: boolean
+      played_word:
+        type: string
+    type: object
+  domain.AppConfigData:
+    additionalProperties: true
+    type: object
+  domain.BadgeItem:
+    properties:
+      code:
+        type: string
+      criteria_type:
+        type: string
+      criteria_value:
+        type: integer
+      description_vi:
+        type: string
+      earned_at:
+        type: string
+      icon_url:
+        type: string
+      id:
+        type: string
+      name_vi:
+        type: string
+    type: object
+  domain.BadgeListData:
+    properties:
+      earned:
+        items:
+          $ref: '#/definitions/domain.BadgeItem'
+        type: array
+      locked:
+        items:
+          $ref: '#/definitions/domain.BadgeItem'
+        type: array
+    type: object
+  domain.ChartsData:
+    properties:
+      period:
+        type: string
+      points:
+        items:
+          $ref: '#/definitions/domain.SnapshotPoint'
+        type: array
+    type: object
+  domain.DailyChallengeData:
+    properties:
+      available:
+        type: boolean
+      banner_url:
+        type: string
+      category:
+        type: string
+      challenge_id:
+        type: string
+      content_item_id:
+        type: string
+      date:
+        type: string
+      message:
+        type: string
+      moderated:
+        type: boolean
+      passage_id:
+        type: string
+      user_status:
+        type: string
+    type: object
+  domain.DailyHistoryItem:
+    properties:
+      category:
+        type: string
+      completed_at:
+        type: string
+      date:
+        type: string
+      score:
+        type: number
+      status:
+        type: string
+    type: object
+  domain.DrillStatusData:
+    properties:
+      correct_count:
+        type: integer
+      drill_id:
+        type: string
+      hearts_left:
+        type: integer
+      status:
+        type: string
+      total_items:
+        type: integer
+    type: object
+  domain.ExamPromptItem:
+    properties:
+      exam_type:
+        type: string
+      id:
+        type: string
+      part:
+        type: string
+      prep_seconds:
+        type: integer
+      prompt_text:
+        type: string
+      speak_seconds:
+        type: integer
+    type: object
+  domain.ExamReportData:
+    properties:
+      band_score:
+        type: number
+      cefr_level:
+        type: string
+      criteria: {}
+      exam_type:
+        type: string
+      session_id:
+        type: string
+      status:
+        type: string
+    type: object
+  domain.ExamSessionData:
+    properties:
+      band_score:
+        type: number
+      cefr_level:
+        type: string
+      exam_type:
+        type: string
+      session_id:
+        type: string
+      status:
+        type: string
+    type: object
+  domain.LegalDocData:
+    properties:
+      content_md:
+        type: string
+      doc_type:
+        type: string
+      id:
+        type: string
+      locale:
+        type: string
+      version:
+        type: integer
+    type: object
+  domain.ListenDrillData:
+    properties:
+      drill_id:
+        type: string
+      hearts_left:
+        type: integer
+      pairs:
+        items:
+          $ref: '#/definitions/domain.ListenPairItem'
+        type: array
+      total_items:
+        type: integer
+    type: object
+  domain.ListenPairItem:
+    properties:
+      audio_a:
+        type: string
+      audio_b:
+        type: string
+      pair_id:
+        type: string
+      word_a:
+        type: string
+      word_b:
+        type: string
+    type: object
+  domain.MessageData:
+    properties:
+      message:
+        type: string
+    type: object
+  domain.PARawPayload:
+    properties:
+      completeness:
+        type: number
+      fluency:
+        type: number
+      phonemes:
+        items:
+          $ref: '#/definitions/domain.PhonemeScore'
+        type: array
+      prosody:
+        type: number
+      word_scores:
+        items:
+          $ref: '#/definitions/domain.WordScore'
+        type: array
+    type: object
+  domain.PhonemeScore:
+    properties:
+      accuracy:
+        type: number
+      expected:
+        type: string
+      phoneme_index:
+        type: integer
+      said:
+        description: 'NBest: what the user actually said'
+        type: string
+      word_index:
+        type: integer
+    type: object
+  domain.PlanItem:
+    properties:
+      billing_period:
+        type: string
+      display_name_vi:
+        type: string
+      features: {}
+      plan:
+        type: string
+      price_vnd:
+        type: integer
+      product_id_android:
+        type: string
+      product_id_ios:
+        type: string
+    type: object
+  domain.ProgressOverviewData:
+    properties:
+      current_streak:
+        type: integer
+      last_active_date:
+        type: string
+      longest_streak:
+        type: integer
+      total_sessions:
+        type: integer
+    type: object
+  domain.RecommendationItem:
+    properties:
+      content_id:
+        type: string
+      difficulty:
+        type: integer
+      message:
+        type: string
+      reason:
+        type: string
+      text:
+        type: string
+      type:
+        type: string
+    type: object
+  domain.ReportData:
+    properties:
+      period:
+        type: string
+      snapshots:
+        items:
+          $ref: '#/definitions/domain.SnapshotPoint'
+        type: array
+    type: object
+  domain.Response:
+    properties:
+      data: {}
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  domain.ShadowingCompleteData:
+    properties:
+      avg_score:
+        type: number
+      completed:
+        type: boolean
+      passage_id:
+        type: string
+    type: object
+  domain.SnapshotPoint:
+    properties:
+      date:
+        type: string
+      score:
+        type: number
+    type: object
+  domain.StatusData:
+    properties:
+      db:
+        type: string
+      redis:
+        type: string
+      status:
+        type: string
+    type: object
+  domain.SyncData:
+    properties:
+      profile: {}
+      synced_at:
+        type: string
+    type: object
+  domain.TokenData:
+    properties:
+      access_token:
+        type: string
+      expires_at:
+        type: string
+      is_guest:
+        type: boolean
+      refresh_token:
+        type: string
+      user_id:
+        type: string
+    type: object
+  domain.WordScore:
+    properties:
+      accuracy:
+        type: number
+      error_type:
+        description: Omission, Insertion, Mispronunciation, None
+        type: string
+      word:
+        type: string
+      word_index:
+        type: integer
+    type: object
+  handler.analyticsEventRequest:
+    properties:
+      event_name:
+        type: string
+      properties:
+        additionalProperties: {}
+        type: object
+    required:
+    - event_name
+    type: object
+  handler.answerRequest:
+    properties:
+      chosen_word:
+        type: string
+      pair_id:
+        type: string
+    required:
+    - chosen_word
+    - pair_id
+    type: object
+  handler.createSessionRequest:
+    properties:
+      mode:
+        enum:
+        - word
+        - sentence
+        - minimal_pair
+        - read_word
+        - shadowing
+        - exam
+        type: string
+      scoring_level:
+        enum:
+        - easy
+        - medium
+        - hard
+        type: string
+      source:
+        enum:
+        - recommended
+        - free_choice
+        - daily
+        - onboarding
+        type: string
+    required:
+    - mode
+    type: object
+  handler.feedbackRequest:
+    properties:
+      context:
+        additionalProperties: {}
+        type: object
+      message:
+        maxLength: 2000
+        minLength: 1
+        type: string
+      type:
+        enum:
+        - feedback
+        - bug
+        - support
+        type: string
+    required:
+    - message
+    - type
+    type: object
+  handler.ingestResultRequest:
+    properties:
+      audio_ref:
+        type: string
+      content_item_id:
+        type: string
+      idempotency_key:
+        type: string
+      minimal_pair_id:
+        type: string
+      pa_raw:
+        $ref: '#/definitions/domain.PARawPayload'
+      scoring_level:
+        enum:
+        - easy
+        - medium
+        - hard
+        type: string
+    required:
+    - idempotency_key
+    - pa_raw
+    - scoring_level
+    type: object
+  handler.issueTokenRequest:
+    properties:
+      engine:
+        enum:
+        - azure
+        - speechace
+        type: string
+      session_id:
+        type: string
+    required:
+    - engine
+    - session_id
+    type: object
+  handler.loginRequest:
+    properties:
+      email:
+        type: string
+      id_token:
+        type: string
+      password:
+        type: string
+      provider:
+        enum:
+        - email
+        - google
+        - apple
+        type: string
+    required:
+    - provider
+    type: object
+  handler.notifPrefsRequest:
+    properties:
+      practice_reminder:
+        properties:
+          enabled:
+            type: boolean
+          time:
+            type: string
+        type: object
+      streak_reminder:
+        properties:
+          enabled:
+            type: boolean
+        type: object
+    type: object
+  handler.privacyRequest:
+    properties:
+      allow_recording_for_improvement:
+        type: boolean
+      save_recording_history:
+        type: boolean
+    type: object
+  handler.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  handler.registerDeviceRequest:
+    properties:
+      platform:
+        enum:
+        - ios
+        - android
+        type: string
+      push_token:
+        type: string
+    required:
+    - platform
+    - push_token
+    type: object
+  handler.registerRequest:
+    properties:
+      display_name:
+        type: string
+      email:
+        type: string
+      id_token:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      provider:
+        enum:
+        - email
+        - google
+        - apple
+        type: string
+    required:
+    - provider
+    type: object
+  handler.sentenceResultRequest:
+    properties:
+      audio_ref:
+        type: string
+      order_index:
+        minimum: 0
+        type: integer
+      pa_raw:
+        $ref: '#/definitions/domain.PARawPayload'
+      scoring_level:
+        enum:
+        - easy
+        - medium
+        - hard
+        type: string
+    required:
+    - pa_raw
+    - scoring_level
+    type: object
+  handler.startDrillRequest:
+    properties:
+      count:
+        maximum: 20
+        minimum: 5
+        type: integer
+    type: object
+  handler.updateMeRequest:
+    properties:
+      daily_goal_items:
+        maximum: 50
+        minimum: 1
+        type: integer
+      default_scoring_level:
+        enum:
+        - easy
+        - medium
+        - hard
+        type: string
+      display_name:
+        type: string
+      goal:
+        enum:
+        - communication
+        - interview
+        - ielts_toeic
+        - beginner
+        type: string
+      level:
+        enum:
+        - beginner
+        - intermediate
+        - advanced
+        type: string
+      target_accent:
+        enum:
+        - US
+        - UK
+        type: string
+      timezone:
+        type: string
+    type: object
+  handler.verifyReceiptRequest:
+    properties:
+      receipt:
+        type: string
+      store:
+        enum:
+        - app_store
+        - google_play
+        type: string
+    required:
+    - receipt
+    - store
+    type: object
+  service.ContentItem:
+    properties:
+      audio_url_uk:
+        type: string
+      audio_url_us:
+        type: string
+      difficulty:
+        type: integer
+      focus_phonemes:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      ipa:
+        type: string
+      text:
+        type: string
+      topic:
+        type: string
+      type:
+        type: string
+    type: object
+  service.ErrorProfileDTO:
+    properties:
+      overall_score:
+        type: number
+      phoneme_status:
+        items:
+          $ref: '#/definitions/service.PhonemeStatus'
+        type: array
+      skill_status:
+        items:
+          $ref: '#/definitions/service.SkillStatus'
+        type: array
+      top_errors:
+        items:
+          $ref: '#/definitions/service.TopError'
+        type: array
+    type: object
+  service.FixGuideItem:
+    properties:
+      examples: {}
+      id:
+        type: string
+      is_simplified:
+        type: boolean
+      media_url:
+        type: string
+      tongue_position_vi:
+        type: string
+    type: object
+  service.IngestResultOutput:
+    properties:
+      accuracy:
+        type: number
+      completeness:
+        type: number
+      fluency:
+        type: number
+      item_result_id:
+        type: string
+      prosody:
+        type: number
+      trust_flag:
+        type: string
+    type: object
+  service.MinimalPairItem:
+    properties:
+      audio_a_us:
+        type: string
+      audio_b_us:
+        type: string
+      category:
+        type: string
+      explain_vi:
+        type: string
+      id:
+        type: string
+      phoneme_a:
+        type: string
+      phoneme_b:
+        type: string
+      word_a:
+        type: string
+      word_b:
+        type: string
+    type: object
+  service.NotifPrefs:
+    properties:
+      practice_reminder:
+        properties:
+          enabled:
+            type: boolean
+          time:
+            type: string
+        type: object
+      streak_reminder:
+        properties:
+          enabled:
+            type: boolean
+        type: object
+    type: object
+  service.PassageItem:
+    properties:
+      difficulty:
+        type: integer
+      id:
+        type: string
+      sentence_count:
+        type: integer
+      source:
+        type: string
+      title:
+        type: string
+      topic:
+        type: string
+    type: object
+  service.PassageSentenceItem:
+    properties:
+      id:
+        type: string
+      ipa:
+        type: string
+      native_audio_url:
+        type: string
+      order_index:
+        type: integer
+      text:
+        type: string
+    type: object
+  service.PhonemeStatus:
+    properties:
+      attempts:
+        type: integer
+      mastery:
+        type: number
+      phoneme:
+        type: string
+      status:
+        type: string
+    type: object
+  service.PrivacyPrefs:
+    properties:
+      allow_recording_for_improvement:
+        type: boolean
+      save_recording_history:
+        type: boolean
+    type: object
+  service.QuotaDTO:
+    properties:
+      daily_limit:
+        type: integer
+      is_premium:
+        type: boolean
+      items_used:
+        type: integer
+      remaining:
+        type: integer
+    type: object
+  service.SessionDTO:
+    properties:
+      ended_at:
+        type: string
+      id:
+        type: string
+      mode:
+        type: string
+      scoring_level:
+        type: string
+      source:
+        type: string
+      started_at:
+        type: string
+      summary_score:
+        type: number
+    type: object
+  service.ShadowingProgressDTO:
+    properties:
+      completed:
+        type: boolean
+      current_sentence_index:
+        type: integer
+      passage_avg_score:
+        type: number
+      passage_id:
+        type: string
+      sentence_status: {}
+    type: object
+  service.ShadowingSentenceResult:
+    properties:
+      can_skip:
+        type: boolean
+      next_action:
+        description: advance | retry | skip_available
+        type: string
+      passed:
+        type: boolean
+      score:
+        type: number
+    type: object
+  service.SkillStatus:
+    properties:
+      mastery:
+        type: number
+      skill:
+        type: string
+      status:
+        type: string
+    type: object
+  service.SpeechTokenResult:
+    properties:
+      engine:
+        type: string
+      expires_at:
+        type: string
+      region:
+        type: string
+      token:
+        type: string
+    type: object
+  service.StreakDTO:
+    properties:
+      current_streak:
+        type: integer
+      last_active_date:
+        type: string
+      longest_streak:
+        type: integer
+    type: object
+  service.SubscriptionDTO:
+    properties:
+      plan:
+        type: string
+      renews_at:
+        type: string
+      status:
+        type: string
+      store:
+        type: string
+    type: object
+  service.TopError:
+    properties:
+      l1_tag:
+        type: string
+      mastery:
+        type: number
+      phoneme:
+        type: string
+      status:
+        type: string
+    type: object
+  service.UserProfile:
+    properties:
+      auth_provider:
+        type: string
+      created_at:
+        type: string
+      daily_goal_items:
+        type: integer
+      default_scoring_level:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      goal:
+        type: string
+      id:
+        type: string
+      is_guest:
+        type: boolean
+      level:
+        type: string
+      onboarding_completed:
+        type: boolean
+      target_accent:
+        type: string
+      timezone:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: dev@phonara.app
+    name: Phonara Team
+  description: |-
+    Backend API cho ứng dụng luyện phát âm tiếng Anh Phonara.
+    Bao gồm: Authentication, Practice Sessions, Error Profile Engine,
+    Content, Shadowing, Minimal Pairs, Subscription, Exam (Speechace), Daily Challenge.
+  license:
+    name: Proprietary
+  title: Phonara API
+  version: "1.0"
+paths:
+  /app-config:
+    get:
+      description: Trả min_version (force-update) và feature flags "Sắp có" (S09b/S22).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Config key-value map
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.AppConfigData'
+              type: object
+      summary: App configuration flags
+      tags:
+      - System
+  /auth/guest:
+    post:
+      description: Tạo tài khoản khách tạm thời (BR-FREE-04). Giới hạn tính năng,
+        có thể upgrade sau.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Guest tokens
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.TokenData'
+              type: object
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      summary: Tạo guest user
+      tags:
+      - Auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Xác thực người dùng qua email/Google/Apple. Trả access_token (15m)
+        và refresh_token (7d).
+      parameters:
+      - description: Login payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Tokens issued
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.TokenData'
+              type: object
+        "401":
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      summary: Đăng nhập
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Revoke refresh token cũ và issue cặp token mới. Client dùng khi
+        access_token hết hạn.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.refreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: New tokens
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.TokenData'
+              type: object
+        "401":
+          description: Invalid or expired refresh token
+          schema:
+            $ref: '#/definitions/domain.Response'
+      summary: Refresh token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Tạo tài khoản mới qua email/Google/Apple. Tự động tạo error_profile,
+        subscription(free), streak_record.
+      parameters:
+      - description: Registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Tokens issued
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.TokenData'
+              type: object
+        "400":
+          description: Missing fields
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "409":
+          description: Email already registered
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      summary: Đăng ký tài khoản
+      tags:
+      - Auth
+  /badges:
+    get:
+      description: Trả earned[] và locked[] với criteria và progress tới badge kế
+        tiếp (FR-STREAK-03, S20).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: earned and locked badges
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.BadgeListData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Danh sách badges
+      tags:
+      - Progress
+  /coach/profile:
+    get:
+      description: Trả overall_score, top_errors, phoneme/skill mastery. Dùng cho
+        S07 (onboarding), S19 (coach overview).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Error profile
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.ErrorProfileDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Error Profile — tổng quan phát âm
+      tags:
+      - Coach
+  /coach/recommendation:
+    get:
+      description: Rank = severity × frequency × L1_importance × goal_fit (BR-COACH-04).
+        Dùng cho S09 hero section.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Recommended content
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.RecommendationItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Bài luyện đề xuất
+      tags:
+      - Coach
+  /coach/report:
+    get:
+      description: Đọc mastery_snapshots để tính trend ↑↓ và sparkline (FR-COACH-05,
+        S28).
+      parameters:
+      - description: 'week hoặc month (default: week)'
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Progress report
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ReportData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Báo cáo tiến độ theo tuần/tháng
+      tags:
+      - Coach
+  /content/fix-guide:
+    get:
+      description: Trả fix guide tiếng Việt cho phoneme/l1_tag. Fallback về simplified
+        guide nếu chưa có rich content (BR-L1-02).
+      parameters:
+      - description: 'IPA phoneme (vd: /θ/)'
+        in: query
+        name: phoneme
+        type: string
+      - description: L1 error tag code
+        in: query
+        name: l1_tag
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Fix guide
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.FixGuideItem'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Fix guide hướng dẫn sửa lỗi phát âm
+      tags:
+      - Content
+  /content/minimal-pairs:
+    get:
+      description: Lấy cặp âm tối thiểu, filter theo L1 error tag hoặc category chip
+        (S15).
+      parameters:
+      - description: L1 error tag code (final_consonant_deletion, th_sound…)
+        in: query
+        name: l1_tag
+        type: string
+      - description: Category (final_sound, th, l_n, v_w, vowel_length)
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Minimal pairs
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/service.MinimalPairItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Danh sách minimal pairs
+      tags:
+      - Content
+  /content/passages:
+    get:
+      parameters:
+      - description: Source (curated, daily, news, dialogue)
+        in: query
+        name: source
+        type: string
+      - description: Difficulty level (1–5)
+        in: query
+        name: difficulty
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Passages
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/service.PassageItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Danh sách shadowing passages
+      tags:
+      - Content
+  /content/passages/{id}/sentences:
+    get:
+      parameters:
+      - description: Passage UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Sentences
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/service.PassageSentenceItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Passage not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Câu trong passage
+      tags:
+      - Content
+  /content/sentences:
+    get:
+      parameters:
+      - description: Topic
+        in: query
+        name: topic
+        type: string
+      - description: Goal
+        in: query
+        name: goal
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Sentences list
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/service.ContentItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Danh sách câu luyện
+      tags:
+      - Content
+  /content/words:
+    get:
+      description: Lấy danh sách words active, filter theo topic/goal/phoneme (FR-WORD-07).
+      parameters:
+      - description: Topic (interview, travel…)
+        in: query
+        name: topic
+        type: string
+      - description: Goal (communication, interview, ielts_toeic, beginner)
+        in: query
+        name: goal
+        type: string
+      - description: 'Focus phoneme (vd: /θ/)'
+        in: query
+        name: phoneme
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Words list
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/service.ContentItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Danh sách từ vựng
+      tags:
+      - Content
+  /daily/history:
+    get:
+      description: 'Trả 30 ngày gần nhất: date, category, status (completed/missed),
+        score (S27 "Thử thách gần đây").'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Challenge history
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.DailyHistoryItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Lịch sử Daily Challenge
+      tags:
+      - Daily
+  /daily/today:
+    get:
+      description: Trả nội dung challenge ngày hôm nay kèm completion status của user
+        (FR-DAILY-01, S27).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Today's challenge
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.DailyChallengeData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Daily Challenge hôm nay
+      tags:
+      - Daily
+  /events:
+    post:
+      consumes:
+      - application/json
+      description: 'Ghi analytics event vào analytics_events (15 events từ doc 10:
+        practice_item_scored, fix_guide_viewed, recording_failed…).'
+      parameters:
+      - description: Event
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.analyticsEventRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Ingest analytics event
+      tags:
+      - System
+  /exam/prompts:
+    get:
+      description: Lấy exam prompts IELTS/TOEIC theo type và part.
+      parameters:
+      - description: ielts hoặc toeic
+        in: query
+        name: type
+        type: string
+      - description: part1, part2, part3…
+        in: query
+        name: part
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Prompts list
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.ExamPromptItem'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Danh sách đề thi
+      tags:
+      - Exam
+  /exam/sessions:
+    get:
+      description: Trả 20 session gần nhất với band_score và cefr_level (save/share,
+        S33).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Sessions list
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.ExamSessionData'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Lịch sử exam sessions
+      tags:
+      - Exam
+    post:
+      consumes:
+      - application/json
+      description: Mở session thi, kiểm tra gating Exam Pack (BR-PAY-06).
+      parameters:
+      - description: Prompt ID
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            prompt_id:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Session created
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ExamSessionData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "402":
+          description: Exam Pack required
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Tạo exam session
+      tags:
+      - Exam
+  /exam/sessions/{id}/report:
+    get:
+      description: Trả band_score + cefr_level + criteria sau khi Speechace đã chấm
+        xong (S33).
+      parameters:
+      - description: Session UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Exam report
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ExamReportData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Báo cáo kết quả thi
+      tags:
+      - Exam
+  /exam/sessions/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: Client upload audio_ref, server enqueue async Speechace scoring.
+        Client KHÔNG tự chấm band (§3b.2 trust boundary).
+      parameters:
+      - description: Session UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Audio reference
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            audio_ref:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Submitted for scoring
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ExamSessionData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Session not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Nộp bài thi (upload audio)
+      tags:
+      - Exam
+  /feedback:
+    post:
+      consumes:
+      - application/json
+      description: Lưu feedback/bug/support report kèm context (app version, device,
+        screen). S22/S24.
+      parameters:
+      - description: Feedback
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.feedbackRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Received
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Gửi feedback / báo lỗi
+      tags:
+      - System
+  /freemium/quota:
+    get:
+      description: Trả items_used, daily_limit, remaining. Premium user trả is_premium=true,
+        limit=-1 (BR-FREE-01).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Quota
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.QuotaDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Freemium quota hôm nay
+      tags:
+      - Subscription
+  /health:
+    get:
+      description: Luôn trả 200 nếu process còn sống. Dùng cho Docker/K8s liveness
+        check.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ok
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.StatusData'
+              type: object
+      summary: Liveness probe
+      tags:
+      - Probes
+  /iap/webhook/apple:
+    post:
+      consumes:
+      - application/json
+      description: Nhận server notifications từ Apple (subscription renewed, canceled,
+        refunded).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ok
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+      summary: Apple server notifications webhook
+      tags:
+      - Subscription
+  /iap/webhook/google:
+    post:
+      consumes:
+      - application/json
+      description: Nhận Real-Time Developer Notifications từ Google Play (subscription
+        events).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ok
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+      summary: Google Play RTDN webhook
+      tags:
+      - Subscription
+  /legal/{doc_type}:
+    get:
+      description: Trả phiên bản mới nhất của Terms of Service hoặc Privacy Policy
+        (S02/S23).
+      parameters:
+      - description: terms hoặc privacy
+        in: path
+        name: doc_type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Legal document (markdown)
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.LegalDocData'
+              type: object
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      summary: Legal documents (Terms / Privacy)
+      tags:
+      - System
+  /me:
+    delete:
+      description: Soft-delete tài khoản và enqueue async job xóa toàn bộ audio trên
+        S3 (BR-PRIV-02).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Deletion initiated
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Xóa tài khoản
+      tags:
+      - Me
+    get:
+      description: 'Trả về thông tin profile: goal, level, accent, scoring_level,
+        timezone, consent flags.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.UserProfile'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Lấy profile người dùng
+      tags:
+      - Me
+    patch:
+      consumes:
+      - application/json
+      description: Cập nhật goal, level, accent, daily_goal, default_scoring_level,
+        timezone. Chỉ gửi field cần đổi.
+      parameters:
+      - description: Profile update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated profile
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.UserProfile'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Cập nhật profile
+      tags:
+      - Me
+  /me/devices:
+    post:
+      consumes:
+      - application/json
+      description: Lưu APNs (iOS) hoặc FCM (Android) push token cho thiết bị hiện
+        tại.
+      parameters:
+      - description: Device info
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.registerDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Device registered
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Đăng ký push token
+      tags:
+      - Me
+  /me/export:
+    post:
+      description: Enqueue job gom toàn bộ dữ liệu user thành file tải về (BR-PRIV-02,
+        S23).
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Export request accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Xuất dữ liệu cá nhân (GDPR)
+      tags:
+      - Me
+  /me/history:
+    delete:
+      description: Xóa toàn bộ sessions/results/audio, giữ nguyên tài khoản (S23).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: History deleted
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MessageData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Xóa lịch sử luyện tập
+      tags:
+      - Me
+  /me/notifications:
+    get:
+      description: Đọc cài đặt nhắc luyện tập và nhắc streak (S08/S22).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Notification preferences
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.NotifPrefs'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Lấy notification preferences
+      tags:
+      - Me
+    patch:
+      consumes:
+      - application/json
+      description: Bật/tắt practice_reminder và streak_reminder, đặt giờ nhắc (S22).
+      parameters:
+      - description: Notification preferences
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.notifPrefsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.NotifPrefs'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Cập nhật notification preferences
+      tags:
+      - Me
+  /me/privacy:
+    get:
+      description: 'Đọc cài đặt quyền riêng tư: lưu bản ghi và dùng để cải thiện sản
+        phẩm (BR-PRIV-01/03, S23).'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Privacy settings
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.PrivacyPrefs'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Lấy consent flags
+      tags:
+      - Me
+    patch:
+      consumes:
+      - application/json
+      description: Bật/tắt allow_recording_for_improvement và save_recording_history.
+        Chi phối việc lưu audio_ref.
+      parameters:
+      - description: Privacy flags
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.privacyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.PrivacyPrefs'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Cập nhật consent flags
+      tags:
+      - Me
+  /me/sync:
+    post:
+      description: Trả về payload sync cho đa thiết bị (NFR-REL-04).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Sync data
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.SyncData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Đồng bộ đa thiết bị
+      tags:
+      - Me
+  /minimal-pairs/listen/{drill_id}:
+    get:
+      parameters:
+      - description: Drill UUID
+        in: path
+        name: drill_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: total_items, correct_count, hearts_left, status
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.DrillStatusData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Trạng thái listen drill
+      tags:
+      - MinimalPairs
+  /minimal-pairs/listen/{drill_id}/answer:
+    post:
+      consumes:
+      - application/json
+      description: Chấm đúng/sai, trừ heart nếu sai, cập nhật pair_mastery.listen
+        (FR-MP-02).
+      parameters:
+      - description: Drill UUID
+        in: path
+        name: drill_id
+        required: true
+        type: string
+      - description: Answer
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.answerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: is_correct + played_word
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.AnswerResultData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Drill or pair not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Nộp đáp án listen drill
+      tags:
+      - MinimalPairs
+  /minimal-pairs/listen/start:
+    post:
+      consumes:
+      - application/json
+      description: Tạo phiên nghe phân biệt âm với N cặp ngẫu nhiên, hearts=3 (FR-MP-02,
+        S16).
+      parameters:
+      - description: Drill config
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.startDrillRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Drill created with pair list
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ListenDrillData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Bắt đầu listen drill
+      tags:
+      - MinimalPairs
+  /progress/charts:
+    get:
+      description: Đọc mastery_snapshots để trả điểm theo thời gian cho sparkline
+        (S19/S28).
+      parameters:
+      - description: week hoặc month
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chart data points
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ChartsData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Score trend chart
+      tags:
+      - Progress
+  /progress/overview:
+    get:
+      description: Streak hiện tại, longest_streak, tổng số session (S20).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Overview data
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ProgressOverviewData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Progress overview
+      tags:
+      - Progress
+  /ready:
+    get:
+      description: Kiểm tra kết nối DB và Redis. Trả 503 nếu một trong hai không kết
+        nối được.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: all healthy
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.StatusData'
+              type: object
+        "503":
+          description: degraded
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.StatusData'
+              type: object
+      summary: Readiness probe
+      tags:
+      - Probes
+  /sessions:
+    post:
+      consumes:
+      - application/json
+      description: Mở session luyện tập mới. Server kiểm tra gating (quota freemium).
+        Nếu scoring_level không gửi, dùng default_scoring_level của user.
+      parameters:
+      - description: Session params
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createSessionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Session created
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SessionDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "402":
+          description: Quota exceeded
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Tạo practice session
+      tags:
+      - Sessions
+  /sessions/{id}:
+    get:
+      parameters:
+      - description: Session UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Session
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SessionDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Lấy thông tin session
+      tags:
+      - Sessions
+  /sessions/{id}/end:
+    post:
+      description: Đóng session, tính summary_score = avg accuracy từ toàn bộ results.
+      parameters:
+      - description: Session UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Session ended
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SessionDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Kết thúc session
+      tags:
+      - Sessions
+  /sessions/{id}/results:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Nhận PA thô từ Azure Speech SDK. Server áp Level scoring (§3b.0a), sanity-check, lưu DB, enqueue recompute Error Profile.
+        Idempotent: cùng idempotency_key sẽ không tạo result trùng (BR-QA-03).
+        Recording fail (no speech/noise): trả 422, không tạo result, không trừ điểm (BR-SCORE-07).
+      parameters:
+      - description: Session UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: PA raw result
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ingestResultRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Result stored
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.IngestResultOutput'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Session not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Recording failed / validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Nộp kết quả PA (ingestion)
+      tags:
+      - Sessions
+  /sessions/{id}/results:batch:
+    post:
+      consumes:
+      - application/json
+      description: Nộp nhiều PA result cùng lúc khi kết nối mạng khôi phục (NFR-REL-03).
+        Tối đa 50 items.
+      parameters:
+      - description: Session UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Batch results
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            results:
+              items:
+                $ref: '#/definitions/handler.ingestResultRequest'
+              type: array
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Batch processed
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/service.IngestResultOutput'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Batch ingest results (offline sync)
+      tags:
+      - Sessions
+  /sessions/history:
+    get:
+      description: Trả 50 session gần nhất. Mỗi session có summary_score và signed
+        URL để replay audio (consent-gated).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Session history
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/service.SessionDTO'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Lịch sử practice sessions
+      tags:
+      - Sessions
+  /sessions/in-progress:
+    get:
+      description: Trả session chưa ended_at để client hiển thị "Tiếp tục 2/8" (S09b).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: In-progress session (null nếu không có)
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SessionDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Session đang dang dở
+      tags:
+      - Sessions
+  /shadowing/{passage_id}/complete:
+    post:
+      description: Mark passage completed, trả avg_score tổng kết (S26).
+      parameters:
+      - description: Passage UUID
+        in: path
+        name: passage_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Summary
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ShadowingCompleteData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Hoàn thành passage
+      tags:
+      - Shadowing
+  /shadowing/{passage_id}/progress:
+    get:
+      description: Trả current_sentence_index, sentence_status (passed/current/skipped),
+        avg_score.
+      parameters:
+      - description: Passage UUID
+        in: path
+        name: passage_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Progress
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.ShadowingProgressDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Tiến độ shadowing passage
+      tags:
+      - Shadowing
+  /shadowing/{passage_id}/sentence-result:
+    post:
+      consumes:
+      - application/json
+      description: 'Server áp Level scoring, check ngưỡng 80% (BR-SHAD-02). Trả next_action:
+        advance | retry | skip_available.'
+      parameters:
+      - description: Passage UUID
+        in: path
+        name: passage_id
+        required: true
+        type: string
+      - description: Sentence PA result
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.sentenceResultRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Result
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.ShadowingSentenceResult'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Nộp kết quả câu shadowing
+      tags:
+      - Shadowing
+  /speech/token:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Cấp short-lived token (30–60s) cho Azure Speech hoặc Speechace.
+        Áp dụng 7 lớp phòng thủ chi phí: rate-limit user/IP, freemium quota, cost circuit breaker.
+      parameters:
+      - description: Token request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.issueTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Token issued
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SpeechTokenResult'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "402":
+          description: Freemium quota exceeded
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "429":
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "503":
+          description: Cost circuit breaker triggered
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Cấp speech token (§3c)
+      tags:
+      - Speech
+  /streak/check-in:
+    post:
+      description: Ghi nhận hoạt động hôm nay theo timezone user. Tăng current_streak
+        nếu liên tiếp, reset về 1 nếu gián đoạn, cập nhật longest_streak (BR-STREAK-01).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated streak
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.StreakDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Streak check-in hàng ngày
+      tags:
+      - Progress
+  /subscription:
+    get:
+      description: Trả plan (free/premium/exam_pack), status, renews_at, store.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Subscription info
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SubscriptionDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Trạng thái subscription
+      tags:
+      - Subscription
+  /subscription/plans:
+    get:
+      description: Trả pricing plans với giá VND, product_id cho App Store/Google
+        Play (BR-PAY-03, S21).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Plans list with VND pricing
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.PlanItem'
+                  type: array
+              type: object
+      summary: Danh sách gói đăng ký
+      tags:
+      - Subscription
+  /subscription/restore:
+    post:
+      consumes:
+      - application/json
+      description: Khôi phục entitlement bằng cách re-verify với store (FR-PAY-02).
+        Bắt buộc theo App Store / Google Play policy.
+      parameters:
+      - description: Receipt
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.verifyReceiptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Restored subscription
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SubscriptionDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Restore Purchase (bắt buộc store)
+      tags:
+      - Subscription
+  /subscription/verify:
+    post:
+      consumes:
+      - application/json
+      description: Xác minh receipt từ App Store hoặc Google Play, nâng cấp plan nếu
+        hợp lệ (BR-PAY-02).
+      parameters:
+      - description: Receipt
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.verifyReceiptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated subscription
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.SubscriptionDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Invalid receipt
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Verify IAP receipt
+      tags:
+      - Subscription
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'JWT access token. Format: "Bearer <token>"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

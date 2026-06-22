@@ -1,0 +1,4641 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Backend API cho ứng dụng luyện phát âm tiếng Anh Phonara.\nBao gồm: Authentication, Practice Sessions, Error Profile Engine,\nContent, Shadowing, Minimal Pairs, Subscription, Exam (Speechace), Daily Challenge.",
+        "title": "Phonara API",
+        "contact": {
+            "name": "Phonara Team",
+            "email": "dev@phonara.app"
+        },
+        "license": {
+            "name": "Proprietary"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/v1",
+    "paths": {
+        "/app-config": {
+            "get": {
+                "description": "Trả min_version (force-update) và feature flags \"Sắp có\" (S09b/S22).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "App configuration flags",
+                "responses": {
+                    "200": {
+                        "description": "Config key-value map",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.AppConfigData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/guest": {
+            "post": {
+                "description": "Tạo tài khoản khách tạm thời (BR-FREE-04). Giới hạn tính năng, có thể upgrade sau.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Tạo guest user",
+                "responses": {
+                    "201": {
+                        "description": "Guest tokens",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.TokenData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "description": "Xác thực người dùng qua email/Google/Apple. Trả access_token (15m) và refresh_token (7d).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Đăng nhập",
+                "parameters": [
+                    {
+                        "description": "Login payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.loginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tokens issued",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.TokenData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "Revoke refresh token cũ và issue cặp token mới. Client dùng khi access_token hết hạn.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Refresh token",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.refreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "New tokens",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.TokenData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired refresh token",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "description": "Tạo tài khoản mới qua email/Google/Apple. Tự động tạo error_profile, subscription(free), streak_record.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Đăng ký tài khoản",
+                "parameters": [
+                    {
+                        "description": "Registration payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.registerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Tokens issued",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.TokenData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Missing fields",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Email already registered",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/badges": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả earned[] và locked[] với criteria và progress tới badge kế tiếp (FR-STREAK-03, S20).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Progress"
+                ],
+                "summary": "Danh sách badges",
+                "responses": {
+                    "200": {
+                        "description": "earned and locked badges",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.BadgeListData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/coach/profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả overall_score, top_errors, phoneme/skill mastery. Dùng cho S07 (onboarding), S19 (coach overview).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coach"
+                ],
+                "summary": "Error Profile — tổng quan phát âm",
+                "responses": {
+                    "200": {
+                        "description": "Error profile",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.ErrorProfileDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/coach/recommendation": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rank = severity × frequency × L1_importance × goal_fit (BR-COACH-04). Dùng cho S09 hero section.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coach"
+                ],
+                "summary": "Bài luyện đề xuất",
+                "responses": {
+                    "200": {
+                        "description": "Recommended content",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.RecommendationItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/coach/report": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Đọc mastery_snapshots để tính trend ↑↓ và sparkline (FR-COACH-05, S28).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coach"
+                ],
+                "summary": "Báo cáo tiến độ theo tuần/tháng",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "week hoặc month (default: week)",
+                        "name": "period",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Progress report",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ReportData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/content/fix-guide": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả fix guide tiếng Việt cho phoneme/l1_tag. Fallback về simplified guide nếu chưa có rich content (BR-L1-02).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Content"
+                ],
+                "summary": "Fix guide hướng dẫn sửa lỗi phát âm",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "IPA phoneme (vd: /θ/)",
+                        "name": "phoneme",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "L1 error tag code",
+                        "name": "l1_tag",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fix guide",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.FixGuideItem"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/content/minimal-pairs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lấy cặp âm tối thiểu, filter theo L1 error tag hoặc category chip (S15).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Content"
+                ],
+                "summary": "Danh sách minimal pairs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "L1 error tag code (final_consonant_deletion, th_sound…)",
+                        "name": "l1_tag",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category (final_sound, th, l_n, v_w, vowel_length)",
+                        "name": "category",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Minimal pairs",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/service.MinimalPairItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/content/passages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Content"
+                ],
+                "summary": "Danh sách shadowing passages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Source (curated, daily, news, dialogue)",
+                        "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Difficulty level (1–5)",
+                        "name": "difficulty",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Passages",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/service.PassageItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/content/passages/{id}/sentences": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Content"
+                ],
+                "summary": "Câu trong passage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Passage UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Sentences",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/service.PassageSentenceItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Passage not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/content/sentences": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Content"
+                ],
+                "summary": "Danh sách câu luyện",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Topic",
+                        "name": "topic",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Goal",
+                        "name": "goal",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Sentences list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/service.ContentItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/content/words": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lấy danh sách words active, filter theo topic/goal/phoneme (FR-WORD-07).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Content"
+                ],
+                "summary": "Danh sách từ vựng",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Topic (interview, travel…)",
+                        "name": "topic",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Goal (communication, interview, ielts_toeic, beginner)",
+                        "name": "goal",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Focus phoneme (vd: /θ/)",
+                        "name": "phoneme",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Words list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/service.ContentItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/daily/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả 30 ngày gần nhất: date, category, status (completed/missed), score (S27 \"Thử thách gần đây\").",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Daily"
+                ],
+                "summary": "Lịch sử Daily Challenge",
+                "responses": {
+                    "200": {
+                        "description": "Challenge history",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.DailyHistoryItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/daily/today": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả nội dung challenge ngày hôm nay kèm completion status của user (FR-DAILY-01, S27).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Daily"
+                ],
+                "summary": "Daily Challenge hôm nay",
+                "responses": {
+                    "200": {
+                        "description": "Today's challenge",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.DailyChallengeData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/events": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ghi analytics event vào analytics_events (15 events từ doc 10: practice_item_scored, fix_guide_viewed, recording_failed…).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Ingest analytics event",
+                "parameters": [
+                    {
+                        "description": "Event",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.analyticsEventRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exam/prompts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lấy exam prompts IELTS/TOEIC theo type và part.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Exam"
+                ],
+                "summary": "Danh sách đề thi",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ielts hoặc toeic",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "part1, part2, part3…",
+                        "name": "part",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Prompts list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.ExamPromptItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exam/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả 20 session gần nhất với band_score và cefr_level (save/share, S33).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Exam"
+                ],
+                "summary": "Lịch sử exam sessions",
+                "responses": {
+                    "200": {
+                        "description": "Sessions list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.ExamSessionData"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mở session thi, kiểm tra gating Exam Pack (BR-PAY-06).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Exam"
+                ],
+                "summary": "Tạo exam session",
+                "parameters": [
+                    {
+                        "description": "Prompt ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "prompt_id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Session created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ExamSessionData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "402": {
+                        "description": "Exam Pack required",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exam/sessions/{id}/report": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả band_score + cefr_level + criteria sau khi Speechace đã chấm xong (S33).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Exam"
+                ],
+                "summary": "Báo cáo kết quả thi",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Exam report",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ExamReportData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exam/sessions/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Client upload audio_ref, server enqueue async Speechace scoring. Client KHÔNG tự chấm band (§3b.2 trust boundary).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Exam"
+                ],
+                "summary": "Nộp bài thi (upload audio)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Audio reference",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "audio_ref": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Submitted for scoring",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ExamSessionData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Session not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/feedback": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lưu feedback/bug/support report kèm context (app version, device, screen). S22/S24.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Gửi feedback / báo lỗi",
+                "parameters": [
+                    {
+                        "description": "Feedback",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.feedbackRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Received",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/freemium/quota": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả items_used, daily_limit, remaining. Premium user trả is_premium=true, limit=-1 (BR-FREE-01).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Freemium quota hôm nay",
+                "responses": {
+                    "200": {
+                        "description": "Quota",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.QuotaDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Luôn trả 200 nếu process còn sống. Dùng cho Docker/K8s liveness check.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Probes"
+                ],
+                "summary": "Liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.StatusData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/iap/webhook/apple": {
+            "post": {
+                "description": "Nhận server notifications từ Apple (subscription renewed, canceled, refunded).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Apple server notifications webhook",
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/iap/webhook/google": {
+            "post": {
+                "description": "Nhận Real-Time Developer Notifications từ Google Play (subscription events).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Google Play RTDN webhook",
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/legal/{doc_type}": {
+            "get": {
+                "description": "Trả phiên bản mới nhất của Terms of Service hoặc Privacy Policy (S02/S23).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Legal documents (Terms / Privacy)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "terms hoặc privacy",
+                        "name": "doc_type",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Legal document (markdown)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.LegalDocData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả về thông tin profile: goal, level, accent, scoring_level, timezone, consent flags.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Lấy profile người dùng",
+                "responses": {
+                    "200": {
+                        "description": "Profile",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.UserProfile"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft-delete tài khoản và enqueue async job xóa toàn bộ audio trên S3 (BR-PRIV-02).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Xóa tài khoản",
+                "responses": {
+                    "200": {
+                        "description": "Deletion initiated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cập nhật goal, level, accent, daily_goal, default_scoring_level, timezone. Chỉ gửi field cần đổi.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Cập nhật profile",
+                "parameters": [
+                    {
+                        "description": "Profile update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updateMeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated profile",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.UserProfile"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/devices": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lưu APNs (iOS) hoặc FCM (Android) push token cho thiết bị hiện tại.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Đăng ký push token",
+                "parameters": [
+                    {
+                        "description": "Device info",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.registerDeviceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Device registered",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/export": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Enqueue job gom toàn bộ dữ liệu user thành file tải về (BR-PRIV-02, S23).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Xuất dữ liệu cá nhân (GDPR)",
+                "responses": {
+                    "202": {
+                        "description": "Export request accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/history": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Xóa toàn bộ sessions/results/audio, giữ nguyên tài khoản (S23).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Xóa lịch sử luyện tập",
+                "responses": {
+                    "200": {
+                        "description": "History deleted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MessageData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Đọc cài đặt nhắc luyện tập và nhắc streak (S08/S22).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Lấy notification preferences",
+                "responses": {
+                    "200": {
+                        "description": "Notification preferences",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.NotifPrefs"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Bật/tắt practice_reminder và streak_reminder, đặt giờ nhắc (S22).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Cập nhật notification preferences",
+                "parameters": [
+                    {
+                        "description": "Notification preferences",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.notifPrefsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.NotifPrefs"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/privacy": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Đọc cài đặt quyền riêng tư: lưu bản ghi và dùng để cải thiện sản phẩm (BR-PRIV-01/03, S23).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Lấy consent flags",
+                "responses": {
+                    "200": {
+                        "description": "Privacy settings",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.PrivacyPrefs"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Bật/tắt allow_recording_for_improvement và save_recording_history. Chi phối việc lưu audio_ref.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Cập nhật consent flags",
+                "parameters": [
+                    {
+                        "description": "Privacy flags",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.privacyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.PrivacyPrefs"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/sync": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả về payload sync cho đa thiết bị (NFR-REL-04).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Me"
+                ],
+                "summary": "Đồng bộ đa thiết bị",
+                "responses": {
+                    "200": {
+                        "description": "Sync data",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.SyncData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/minimal-pairs/listen/start": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Tạo phiên nghe phân biệt âm với N cặp ngẫu nhiên, hearts=3 (FR-MP-02, S16).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MinimalPairs"
+                ],
+                "summary": "Bắt đầu listen drill",
+                "parameters": [
+                    {
+                        "description": "Drill config",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.startDrillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Drill created with pair list",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ListenDrillData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/minimal-pairs/listen/{drill_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MinimalPairs"
+                ],
+                "summary": "Trạng thái listen drill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Drill UUID",
+                        "name": "drill_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "total_items, correct_count, hearts_left, status",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.DrillStatusData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/minimal-pairs/listen/{drill_id}/answer": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Chấm đúng/sai, trừ heart nếu sai, cập nhật pair_mastery.listen (FR-MP-02).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MinimalPairs"
+                ],
+                "summary": "Nộp đáp án listen drill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Drill UUID",
+                        "name": "drill_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Answer",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.answerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "is_correct + played_word",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.AnswerResultData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Drill or pair not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/progress/charts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Đọc mastery_snapshots để trả điểm theo thời gian cho sparkline (S19/S28).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Progress"
+                ],
+                "summary": "Score trend chart",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "week hoặc month",
+                        "name": "period",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chart data points",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ChartsData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/progress/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Streak hiện tại, longest_streak, tổng số session (S20).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Progress"
+                ],
+                "summary": "Progress overview",
+                "responses": {
+                    "200": {
+                        "description": "Overview data",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ProgressOverviewData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/ready": {
+            "get": {
+                "description": "Kiểm tra kết nối DB và Redis. Trả 503 nếu một trong hai không kết nối được.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Probes"
+                ],
+                "summary": "Readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "all healthy",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.StatusData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "degraded",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.StatusData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mở session luyện tập mới. Server kiểm tra gating (quota freemium). Nếu scoring_level không gửi, dùng default_scoring_level của user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Tạo practice session",
+                "parameters": [
+                    {
+                        "description": "Session params",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createSessionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Session created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SessionDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "402": {
+                        "description": "Quota exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả 50 session gần nhất. Mỗi session có summary_score và signed URL để replay audio (consent-gated).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Lịch sử practice sessions",
+                "responses": {
+                    "200": {
+                        "description": "Session history",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/service.SessionDTO"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/in-progress": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả session chưa ended_at để client hiển thị \"Tiếp tục 2/8\" (S09b).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Session đang dang dở",
+                "responses": {
+                    "200": {
+                        "description": "In-progress session (null nếu không có)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SessionDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Lấy thông tin session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Session",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SessionDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{id}/end": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Đóng session, tính summary_score = avg accuracy từ toàn bộ results.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Kết thúc session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Session ended",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SessionDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{id}/results": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Nhận PA thô từ Azure Speech SDK. Server áp Level scoring (§3b.0a), sanity-check, lưu DB, enqueue recompute Error Profile.\nIdempotent: cùng idempotency_key sẽ không tạo result trùng (BR-QA-03).\nRecording fail (no speech/noise): trả 422, không tạo result, không trừ điểm (BR-SCORE-07).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Nộp kết quả PA (ingestion)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "PA raw result",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ingestResultRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Result stored",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.IngestResultOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Session not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Recording failed / validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{id}/results:batch": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Nộp nhiều PA result cùng lúc khi kết nối mạng khôi phục (NFR-REL-03). Tối đa 50 items.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Batch ingest results (offline sync)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Batch results",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "results": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/handler.ingestResultRequest"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Batch processed",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/service.IngestResultOutput"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shadowing/{passage_id}/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mark passage completed, trả avg_score tổng kết (S26).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Shadowing"
+                ],
+                "summary": "Hoàn thành passage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Passage UUID",
+                        "name": "passage_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Summary",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ShadowingCompleteData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shadowing/{passage_id}/progress": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả current_sentence_index, sentence_status (passed/current/skipped), avg_score.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Shadowing"
+                ],
+                "summary": "Tiến độ shadowing passage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Passage UUID",
+                        "name": "passage_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Progress",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.ShadowingProgressDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shadowing/{passage_id}/sentence-result": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Server áp Level scoring, check ngưỡng 80% (BR-SHAD-02). Trả next_action: advance | retry | skip_available.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Shadowing"
+                ],
+                "summary": "Nộp kết quả câu shadowing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Passage UUID",
+                        "name": "passage_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Sentence PA result",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.sentenceResultRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Result",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.ShadowingSentenceResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/speech/token": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cấp short-lived token (30–60s) cho Azure Speech hoặc Speechace.\nÁp dụng 7 lớp phòng thủ chi phí: rate-limit user/IP, freemium quota, cost circuit breaker.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Speech"
+                ],
+                "summary": "Cấp speech token (§3c)",
+                "parameters": [
+                    {
+                        "description": "Token request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.issueTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Token issued",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SpeechTokenResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "402": {
+                        "description": "Freemium quota exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Cost circuit breaker triggered",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/streak/check-in": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ghi nhận hoạt động hôm nay theo timezone user. Tăng current_streak nếu liên tiếp, reset về 1 nếu gián đoạn, cập nhật longest_streak (BR-STREAK-01).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Progress"
+                ],
+                "summary": "Streak check-in hàng ngày",
+                "responses": {
+                    "200": {
+                        "description": "Updated streak",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.StreakDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả plan (free/premium/exam_pack), status, renews_at, store.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Trạng thái subscription",
+                "responses": {
+                    "200": {
+                        "description": "Subscription info",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SubscriptionDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/plans": {
+            "get": {
+                "description": "Trả pricing plans với giá VND, product_id cho App Store/Google Play (BR-PAY-03, S21).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Danh sách gói đăng ký",
+                "responses": {
+                    "200": {
+                        "description": "Plans list with VND pricing",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.PlanItem"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Khôi phục entitlement bằng cách re-verify với store (FR-PAY-02). Bắt buộc theo App Store / Google Play policy.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Restore Purchase (bắt buộc store)",
+                "parameters": [
+                    {
+                        "description": "Receipt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.verifyReceiptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Restored subscription",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SubscriptionDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscription/verify": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Xác minh receipt từ App Store hoặc Google Play, nâng cấp plan nếu hợp lệ (BR-PAY-02).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Verify IAP receipt",
+                "parameters": [
+                    {
+                        "description": "Receipt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.verifyReceiptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated subscription",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.SubscriptionDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid receipt",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "domain.AnswerResultData": {
+            "type": "object",
+            "properties": {
+                "is_correct": {
+                    "type": "boolean"
+                },
+                "played_word": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.AppConfigData": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "domain.BadgeItem": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "criteria_type": {
+                    "type": "string"
+                },
+                "criteria_value": {
+                    "type": "integer"
+                },
+                "description_vi": {
+                    "type": "string"
+                },
+                "earned_at": {
+                    "type": "string"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name_vi": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.BadgeListData": {
+            "type": "object",
+            "properties": {
+                "earned": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.BadgeItem"
+                    }
+                },
+                "locked": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.BadgeItem"
+                    }
+                }
+            }
+        },
+        "domain.ChartsData": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string"
+                },
+                "points": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.SnapshotPoint"
+                    }
+                }
+            }
+        },
+        "domain.DailyChallengeData": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "banner_url": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "challenge_id": {
+                    "type": "string"
+                },
+                "content_item_id": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "moderated": {
+                    "type": "boolean"
+                },
+                "passage_id": {
+                    "type": "string"
+                },
+                "user_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DailyHistoryItem": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DrillStatusData": {
+            "type": "object",
+            "properties": {
+                "correct_count": {
+                    "type": "integer"
+                },
+                "drill_id": {
+                    "type": "string"
+                },
+                "hearts_left": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total_items": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ExamPromptItem": {
+            "type": "object",
+            "properties": {
+                "exam_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "part": {
+                    "type": "string"
+                },
+                "prep_seconds": {
+                    "type": "integer"
+                },
+                "prompt_text": {
+                    "type": "string"
+                },
+                "speak_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ExamReportData": {
+            "type": "object",
+            "properties": {
+                "band_score": {
+                    "type": "number"
+                },
+                "cefr_level": {
+                    "type": "string"
+                },
+                "criteria": {},
+                "exam_type": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ExamSessionData": {
+            "type": "object",
+            "properties": {
+                "band_score": {
+                    "type": "number"
+                },
+                "cefr_level": {
+                    "type": "string"
+                },
+                "exam_type": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.LegalDocData": {
+            "type": "object",
+            "properties": {
+                "content_md": {
+                    "type": "string"
+                },
+                "doc_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locale": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ListenDrillData": {
+            "type": "object",
+            "properties": {
+                "drill_id": {
+                    "type": "string"
+                },
+                "hearts_left": {
+                    "type": "integer"
+                },
+                "pairs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ListenPairItem"
+                    }
+                },
+                "total_items": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ListenPairItem": {
+            "type": "object",
+            "properties": {
+                "audio_a": {
+                    "type": "string"
+                },
+                "audio_b": {
+                    "type": "string"
+                },
+                "pair_id": {
+                    "type": "string"
+                },
+                "word_a": {
+                    "type": "string"
+                },
+                "word_b": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.MessageData": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.PARawPayload": {
+            "type": "object",
+            "properties": {
+                "completeness": {
+                    "type": "number"
+                },
+                "fluency": {
+                    "type": "number"
+                },
+                "phonemes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.PhonemeScore"
+                    }
+                },
+                "prosody": {
+                    "type": "number"
+                },
+                "word_scores": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.WordScore"
+                    }
+                }
+            }
+        },
+        "domain.PhonemeScore": {
+            "type": "object",
+            "properties": {
+                "accuracy": {
+                    "type": "number"
+                },
+                "expected": {
+                    "type": "string"
+                },
+                "phoneme_index": {
+                    "type": "integer"
+                },
+                "said": {
+                    "description": "NBest: what the user actually said",
+                    "type": "string"
+                },
+                "word_index": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.PlanItem": {
+            "type": "object",
+            "properties": {
+                "billing_period": {
+                    "type": "string"
+                },
+                "display_name_vi": {
+                    "type": "string"
+                },
+                "features": {},
+                "plan": {
+                    "type": "string"
+                },
+                "price_vnd": {
+                    "type": "integer"
+                },
+                "product_id_android": {
+                    "type": "string"
+                },
+                "product_id_ios": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ProgressOverviewData": {
+            "type": "object",
+            "properties": {
+                "current_streak": {
+                    "type": "integer"
+                },
+                "last_active_date": {
+                    "type": "string"
+                },
+                "longest_streak": {
+                    "type": "integer"
+                },
+                "total_sessions": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.RecommendationItem": {
+            "type": "object",
+            "properties": {
+                "content_id": {
+                    "type": "string"
+                },
+                "difficulty": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ReportData": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string"
+                },
+                "snapshots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.SnapshotPoint"
+                    }
+                }
+            }
+        },
+        "domain.Response": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ShadowingCompleteData": {
+            "type": "object",
+            "properties": {
+                "avg_score": {
+                    "type": "number"
+                },
+                "completed": {
+                    "type": "boolean"
+                },
+                "passage_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SnapshotPoint": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                }
+            }
+        },
+        "domain.StatusData": {
+            "type": "object",
+            "properties": {
+                "db": {
+                    "type": "string"
+                },
+                "redis": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SyncData": {
+            "type": "object",
+            "properties": {
+                "profile": {},
+                "synced_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.TokenData": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "is_guest": {
+                    "type": "boolean"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.WordScore": {
+            "type": "object",
+            "properties": {
+                "accuracy": {
+                    "type": "number"
+                },
+                "error_type": {
+                    "description": "Omission, Insertion, Mispronunciation, None",
+                    "type": "string"
+                },
+                "word": {
+                    "type": "string"
+                },
+                "word_index": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.analyticsEventRequest": {
+            "type": "object",
+            "required": [
+                "event_name"
+            ],
+            "properties": {
+                "event_name": {
+                    "type": "string"
+                },
+                "properties": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "handler.answerRequest": {
+            "type": "object",
+            "required": [
+                "chosen_word",
+                "pair_id"
+            ],
+            "properties": {
+                "chosen_word": {
+                    "type": "string"
+                },
+                "pair_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createSessionRequest": {
+            "type": "object",
+            "required": [
+                "mode"
+            ],
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "word",
+                        "sentence",
+                        "minimal_pair",
+                        "read_word",
+                        "shadowing",
+                        "exam"
+                    ]
+                },
+                "scoring_level": {
+                    "type": "string",
+                    "enum": [
+                        "easy",
+                        "medium",
+                        "hard"
+                    ]
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "recommended",
+                        "free_choice",
+                        "daily",
+                        "onboarding"
+                    ]
+                }
+            }
+        },
+        "handler.feedbackRequest": {
+            "type": "object",
+            "required": [
+                "message",
+                "type"
+            ],
+            "properties": {
+                "context": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "message": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "minLength": 1
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "feedback",
+                        "bug",
+                        "support"
+                    ]
+                }
+            }
+        },
+        "handler.ingestResultRequest": {
+            "type": "object",
+            "required": [
+                "idempotency_key",
+                "pa_raw",
+                "scoring_level"
+            ],
+            "properties": {
+                "audio_ref": {
+                    "type": "string"
+                },
+                "content_item_id": {
+                    "type": "string"
+                },
+                "idempotency_key": {
+                    "type": "string"
+                },
+                "minimal_pair_id": {
+                    "type": "string"
+                },
+                "pa_raw": {
+                    "$ref": "#/definitions/domain.PARawPayload"
+                },
+                "scoring_level": {
+                    "type": "string",
+                    "enum": [
+                        "easy",
+                        "medium",
+                        "hard"
+                    ]
+                }
+            }
+        },
+        "handler.issueTokenRequest": {
+            "type": "object",
+            "required": [
+                "engine",
+                "session_id"
+            ],
+            "properties": {
+                "engine": {
+                    "type": "string",
+                    "enum": [
+                        "azure",
+                        "speechace"
+                    ]
+                },
+                "session_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.loginRequest": {
+            "type": "object",
+            "required": [
+                "provider"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id_token": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "google",
+                        "apple"
+                    ]
+                }
+            }
+        },
+        "handler.notifPrefsRequest": {
+            "type": "object",
+            "properties": {
+                "practice_reminder": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        },
+                        "time": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "streak_reminder": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        }
+                    }
+                }
+            }
+        },
+        "handler.privacyRequest": {
+            "type": "object",
+            "properties": {
+                "allow_recording_for_improvement": {
+                    "type": "boolean"
+                },
+                "save_recording_history": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.refreshRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.registerDeviceRequest": {
+            "type": "object",
+            "required": [
+                "platform",
+                "push_token"
+            ],
+            "properties": {
+                "platform": {
+                    "type": "string",
+                    "enum": [
+                        "ios",
+                        "android"
+                    ]
+                },
+                "push_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.registerRequest": {
+            "type": "object",
+            "required": [
+                "provider"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id_token": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "provider": {
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "google",
+                        "apple"
+                    ]
+                }
+            }
+        },
+        "handler.sentenceResultRequest": {
+            "type": "object",
+            "required": [
+                "pa_raw",
+                "scoring_level"
+            ],
+            "properties": {
+                "audio_ref": {
+                    "type": "string"
+                },
+                "order_index": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "pa_raw": {
+                    "$ref": "#/definitions/domain.PARawPayload"
+                },
+                "scoring_level": {
+                    "type": "string",
+                    "enum": [
+                        "easy",
+                        "medium",
+                        "hard"
+                    ]
+                }
+            }
+        },
+        "handler.startDrillRequest": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 5
+                }
+            }
+        },
+        "handler.updateMeRequest": {
+            "type": "object",
+            "properties": {
+                "daily_goal_items": {
+                    "type": "integer",
+                    "maximum": 50,
+                    "minimum": 1
+                },
+                "default_scoring_level": {
+                    "type": "string",
+                    "enum": [
+                        "easy",
+                        "medium",
+                        "hard"
+                    ]
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "goal": {
+                    "type": "string",
+                    "enum": [
+                        "communication",
+                        "interview",
+                        "ielts_toeic",
+                        "beginner"
+                    ]
+                },
+                "level": {
+                    "type": "string",
+                    "enum": [
+                        "beginner",
+                        "intermediate",
+                        "advanced"
+                    ]
+                },
+                "target_accent": {
+                    "type": "string",
+                    "enum": [
+                        "US",
+                        "UK"
+                    ]
+                },
+                "timezone": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.verifyReceiptRequest": {
+            "type": "object",
+            "required": [
+                "receipt",
+                "store"
+            ],
+            "properties": {
+                "receipt": {
+                    "type": "string"
+                },
+                "store": {
+                    "type": "string",
+                    "enum": [
+                        "app_store",
+                        "google_play"
+                    ]
+                }
+            }
+        },
+        "service.ContentItem": {
+            "type": "object",
+            "properties": {
+                "audio_url_uk": {
+                    "type": "string"
+                },
+                "audio_url_us": {
+                    "type": "string"
+                },
+                "difficulty": {
+                    "type": "integer"
+                },
+                "focus_phonemes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ipa": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "topic": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.ErrorProfileDTO": {
+            "type": "object",
+            "properties": {
+                "overall_score": {
+                    "type": "number"
+                },
+                "phoneme_status": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.PhonemeStatus"
+                    }
+                },
+                "skill_status": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.SkillStatus"
+                    }
+                },
+                "top_errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.TopError"
+                    }
+                }
+            }
+        },
+        "service.FixGuideItem": {
+            "type": "object",
+            "properties": {
+                "examples": {},
+                "id": {
+                    "type": "string"
+                },
+                "is_simplified": {
+                    "type": "boolean"
+                },
+                "media_url": {
+                    "type": "string"
+                },
+                "tongue_position_vi": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.IngestResultOutput": {
+            "type": "object",
+            "properties": {
+                "accuracy": {
+                    "type": "number"
+                },
+                "completeness": {
+                    "type": "number"
+                },
+                "fluency": {
+                    "type": "number"
+                },
+                "item_result_id": {
+                    "type": "string"
+                },
+                "prosody": {
+                    "type": "number"
+                },
+                "trust_flag": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.MinimalPairItem": {
+            "type": "object",
+            "properties": {
+                "audio_a_us": {
+                    "type": "string"
+                },
+                "audio_b_us": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "explain_vi": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "phoneme_a": {
+                    "type": "string"
+                },
+                "phoneme_b": {
+                    "type": "string"
+                },
+                "word_a": {
+                    "type": "string"
+                },
+                "word_b": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.NotifPrefs": {
+            "type": "object",
+            "properties": {
+                "practice_reminder": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        },
+                        "time": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "streak_reminder": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        }
+                    }
+                }
+            }
+        },
+        "service.PassageItem": {
+            "type": "object",
+            "properties": {
+                "difficulty": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "sentence_count": {
+                    "type": "integer"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "topic": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PassageSentenceItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "ipa": {
+                    "type": "string"
+                },
+                "native_audio_url": {
+                    "type": "string"
+                },
+                "order_index": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PhonemeStatus": {
+            "type": "object",
+            "properties": {
+                "attempts": {
+                    "type": "integer"
+                },
+                "mastery": {
+                    "type": "number"
+                },
+                "phoneme": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PrivacyPrefs": {
+            "type": "object",
+            "properties": {
+                "allow_recording_for_improvement": {
+                    "type": "boolean"
+                },
+                "save_recording_history": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "service.QuotaDTO": {
+            "type": "object",
+            "properties": {
+                "daily_limit": {
+                    "type": "integer"
+                },
+                "is_premium": {
+                    "type": "boolean"
+                },
+                "items_used": {
+                    "type": "integer"
+                },
+                "remaining": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.SessionDTO": {
+            "type": "object",
+            "properties": {
+                "ended_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "scoring_level": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "summary_score": {
+                    "type": "number"
+                }
+            }
+        },
+        "service.ShadowingProgressDTO": {
+            "type": "object",
+            "properties": {
+                "completed": {
+                    "type": "boolean"
+                },
+                "current_sentence_index": {
+                    "type": "integer"
+                },
+                "passage_avg_score": {
+                    "type": "number"
+                },
+                "passage_id": {
+                    "type": "string"
+                },
+                "sentence_status": {}
+            }
+        },
+        "service.ShadowingSentenceResult": {
+            "type": "object",
+            "properties": {
+                "can_skip": {
+                    "type": "boolean"
+                },
+                "next_action": {
+                    "description": "advance | retry | skip_available",
+                    "type": "string"
+                },
+                "passed": {
+                    "type": "boolean"
+                },
+                "score": {
+                    "type": "number"
+                }
+            }
+        },
+        "service.SkillStatus": {
+            "type": "object",
+            "properties": {
+                "mastery": {
+                    "type": "number"
+                },
+                "skill": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.SpeechTokenResult": {
+            "type": "object",
+            "properties": {
+                "engine": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.StreakDTO": {
+            "type": "object",
+            "properties": {
+                "current_streak": {
+                    "type": "integer"
+                },
+                "last_active_date": {
+                    "type": "string"
+                },
+                "longest_streak": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.SubscriptionDTO": {
+            "type": "object",
+            "properties": {
+                "plan": {
+                    "type": "string"
+                },
+                "renews_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "store": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.TopError": {
+            "type": "object",
+            "properties": {
+                "l1_tag": {
+                    "type": "string"
+                },
+                "mastery": {
+                    "type": "number"
+                },
+                "phoneme": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.UserProfile": {
+            "type": "object",
+            "properties": {
+                "auth_provider": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "daily_goal_items": {
+                    "type": "integer"
+                },
+                "default_scoring_level": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "goal": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_guest": {
+                    "type": "boolean"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "onboarding_completed": {
+                    "type": "boolean"
+                },
+                "target_accent": {
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "JWT access token. Format: \"Bearer \u003ctoken\u003e\"",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

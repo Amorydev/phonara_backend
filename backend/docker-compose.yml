@@ -1,0 +1,112 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: phonara
+      POSTGRES_USER: phonara
+      POSTGRES_PASSWORD: phonara_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phonara -d phonara"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      S3_ENDPOINT: http://minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      S3_ENDPOINT: http://minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  migrate:
+    image: migrate/migrate:latest
+    volumes:
+      - ./migrations:/migrations
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://phonara:phonara_secret@postgres:5432/phonara?sslmode=disable",
+        "up"
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

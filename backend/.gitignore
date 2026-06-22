@@ -1,0 +1,37 @@
+# Go binaries
+/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+*.out
+
+# Coverage
+coverage.out
+coverage.html
+
+# Environment
+.env
+*.env.local
+
+# Build artifacts
+/out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# sqlc generated (tracked via sqlc generate)
+# internal/store/db/*.go  # optional: you may want to track these
+
+# Vendor (prefer modules)
+/vendor/

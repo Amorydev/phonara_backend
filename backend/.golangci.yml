@@ -1,0 +1,64 @@
+version: "2"
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - godot
+    - noctx
+    - bodyclose
+    - contextcheck
+    - exhaustive
+    - gocritic
+    - gosec
+    - revive
+    - unconvert
+    - unparam
+    - wastedassign
+    - wrapcheck
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/phonara/backend
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - "checkPrivateReceivers"
+          - "sayRepetitiveInsteadOfStutters"
+  gosec:
+    excludes:
+      - G104  # unhandled errors in defer (we use //nolint where appropriate)
+  wrapcheck:
+    ignoreSigs:
+      - ".Errorf("
+      - "errors.New("
+      - "errors.Unwrap("
+      - ".Wrap("
+
+issues:
+  exclude-rules:
+    - path: "_test\\.go"
+      linters:
+        - errcheck
+        - gosec
+        - wrapcheck
+    - path: "cmd/"
+      linters:
+        - wrapcheck
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
+run:
+  timeout: 5m
+  tests: true
