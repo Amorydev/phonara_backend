@@ -1,0 +1,32 @@
+{
+  "version": "vi-2026-07-a-PLACEHOLDER",
+  "_doc": [
+    "Ánh xạ GOP thô → điểm 0–100 (§3.3).",
+    "",
+    "CẢNH BÁO: đây là tham số KHỞI ĐIỂM đặt bằng tay, CHƯA fit trên dữ liệu nào.",
+    "Hậu tố -PLACEHOLDER cố ý để không ai nhầm bản này với bản đã hiệu chỉnh.",
+    "Quy trình đúng: fit trên speechocean762 → đổi version thành vi-2026-XX-a,",
+    "rồi fit lại trên dữ liệu người Việt ở giai đoạn 4 trước khi lên production.",
+    "",
+    "Công thức: score = 100 / (1 + exp(-(a * gop_raw + b)))",
+    "",
+    "MIỀN ĐẦU VÀO LÀ TOÀN TRỤC THỰC. gop_raw KHÔNG bị chặn trên bởi 0 —",
+    "công thức ở §3.2 bước 3 loại chính pᵢ khỏi tập nhiễu nên GOP dương là tín hiệu",
+    "phát âm tốt, không phải trường hợp biên. TUYỆT ĐỐI KHÔNG clip đầu vào.",
+    "Xem test bắt buộc test_calibrate.py::test_no_clipping_of_positive_gop.",
+    "",
+    "Tham số theo NHÓM ÂM chứ không phải một logistic toàn cục (R9): số ứng viên trong",
+    "bảng nhầm lẫn khác nhau giữa các phoneme, nên GOP lệch có cấu trúc theo lớp âm.",
+    "Một logistic toàn cục không sửa được, và §6.4 sẽ trượt vì lý do cấu trúc."
+  ],
+  "formula": "logistic",
+  "groups": {
+    "stop":        { "a": 1.0, "b": 0.0 },
+    "fricative":   { "a": 1.0, "b": 0.0 },
+    "affricate":   { "a": 1.0, "b": 0.0 },
+    "nasal":       { "a": 1.0, "b": 0.0 },
+    "approximant": { "a": 1.0, "b": 0.0 },
+    "vowel":       { "a": 1.0, "b": 0.0 },
+    "other":       { "a": 1.0, "b": 0.0 }
+  }
+}

@@ -47,15 +47,17 @@ type updateMeRequest struct {
 	Level               string  `json:"level" validate:"omitempty,oneof=beginner intermediate advanced"`
 	TargetAccent        string  `json:"target_accent" validate:"omitempty,oneof=US UK"`
 	DailyGoalItems      *int    `json:"daily_goal_items" validate:"omitempty,min=1,max=50"`
+	DailyGoalMinutes    *int    `json:"daily_goal_minutes" validate:"omitempty,min=1,max=120"`
 	DefaultScoringLevel string  `json:"default_scoring_level" validate:"omitempty,oneof=easy medium hard"`
 	DisplayName         *string `json:"display_name"`
+	AvatarURL           *string `json:"avatar_url" validate:"omitempty,url"`
 	Timezone            *string `json:"timezone"`
 }
 
 // UpdateMe godoc
 //
 //	@Summary		Cập nhật profile
-//	@Description	Cập nhật goal, level, accent, daily_goal, default_scoring_level, timezone. Chỉ gửi field cần đổi.
+//	@Description	Cập nhật goal, level, accent, daily_goal_items, daily_goal_minutes, default_scoring_level, display_name, avatar_url, timezone. Chỉ gửi field cần đổi.
 //	@Tags			Me
 //	@Accept			json
 //	@Produce		json
@@ -77,8 +79,10 @@ func (h *MeHandler) UpdateMe(c echo.Context) error {
 		Level:               req.Level,
 		TargetAccent:        req.TargetAccent,
 		DailyGoalItems:      req.DailyGoalItems,
+		DailyGoalMinutes:    req.DailyGoalMinutes,
 		DefaultScoringLevel: req.DefaultScoringLevel,
 		DisplayName:         req.DisplayName,
+		AvatarURL:           req.AvatarURL,
 		Timezone:            req.Timezone,
 	})
 	if err != nil {

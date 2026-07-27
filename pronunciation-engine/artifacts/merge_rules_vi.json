@@ -1,0 +1,20 @@
+{
+  "version": "merge-vi-1.0.0-PLACEHOLDER",
+  "_doc": [
+    "Tham số hợp nhất hai nhánh GOP ↔ chẩn đoán (§3.2 bước 5).",
+    "",
+    "File này TÁCH RIÊNG khỏi calibration_vi.json là cố ý: theo §8, tham số quy tắc hợp",
+    "nhất thuộc algorithm_version, còn ánh xạ điểm thuộc calibration_version. Gộp chung",
+    "một file sẽ lẫn ngữ nghĩa hai trục version và làm hỏng khả năng truy vết.",
+    "",
+    "CẢNH BÁO: giá trị khởi điểm đặt bằng tay, chưa tinh chỉnh. Chốt ở giai đoạn 4 bằng",
+    "ROC-AUC trên cùng bộ dữ liệu gán nhãn (§6.3).",
+    "",
+    "Quy tắc 1 (omission miễn trừ kiểm tra confidence) KHÔNG có tham số — nó là bất biến",
+    "của thuật toán, không phải ngưỡng. Bằng chứng cho omission nằm ở sự VẮNG MẶT trong",
+    "chuỗi decode, không phải ở độ tự tin của một decode không tồn tại."
+  ],
+  "tau_uncertain": 0.5,
+  "tau_gop_low": -1.0,
+  "tau_gop_high": 1.0
+}

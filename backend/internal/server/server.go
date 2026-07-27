@@ -12,12 +12,12 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	echoswagger "github.com/swaggo/echo-swagger"
 
+	_ "github.com/phonara/backend/docs" // swagger docs
 	"github.com/phonara/backend/internal/config"
 	"github.com/phonara/backend/internal/domain"
 	"github.com/phonara/backend/internal/handler"
 	jwtutil "github.com/phonara/backend/internal/pkg/jwt"
 	custmiddleware "github.com/phonara/backend/internal/server/middleware"
-	_ "github.com/phonara/backend/docs" // swagger docs
 )
 
 // Server wraps Echo and all wired dependencies.
@@ -130,6 +130,11 @@ func (s *Server) registerRoutes() {
 	content.GET("/passages/:id/sentences", contentHandler.ListPassageSentences)
 	content.GET("/fix-guide", contentHandler.GetFixGuide)
 
+	// Onboarding Pre-Assessment
+	assessmentHandler := handler.NewAssessmentHandler(s.db)
+	assessments := v1.Group("/assessments", jwtMiddleware)
+	assessments.GET("/pre-assessment", assessmentHandler.GetPreAssessment)
+
 	// Coach / Error Profile
 	coachHandler := handler.NewCoachHandler(s.db, s.redis)
 	coach := v1.Group("/coach", jwtMiddleware)
@@ -175,7 +180,13 @@ func (s *Server) registerRoutes() {
 	dailyHandler := handler.NewDailyHandler(s.db)
 	daily := v1.Group("/daily", jwtMiddleware)
 	daily.GET("/today", dailyHandler.Today)
+	daily.GET("/challenges/:id", dailyHandler.GetChallenge)
 	daily.GET("/history", dailyHandler.History)
+	daily.GET("/mission", dailyHandler.GetMission)
+	daily.POST("/mission/heartbeat", dailyHandler.Heartbeat)
+
+	// Home aggregate (one call on Home entry)
+	v1.GET("/home", handler.NewHomeHandler(s.db).Get, jwtMiddleware)
 
 	// Exam
 	examHandler := handler.NewExamHandler(s.db, s.cfg)

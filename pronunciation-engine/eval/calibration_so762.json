@@ -1,0 +1,40 @@
+{
+  "version": "so762-fit-47369p",
+  "_doc": [
+    "Fit trên speechocean762 (người bản ngữ tiếng Quan Thoại).",
+    "ĐÂY LÀ ĐIỂM KHỞI ĐẦU, chưa phải tham số cho người Việt.",
+    "Phải fit lại ở giai đoạn 4 trước khi lên production.",
+    "Miền đầu vào là toàn trục thực — không clip."
+  ],
+  "formula": "logistic",
+  "groups": {
+    "affricate": {
+      "a": 0.437439,
+      "b": 2.487499
+    },
+    "approximant": {
+      "a": 0.246964,
+      "b": 2.608237
+    },
+    "fricative": {
+      "a": 0.23106,
+      "b": 2.435002
+    },
+    "nasal": {
+      "a": 0.292974,
+      "b": 2.351099
+    },
+    "stop": {
+      "a": 0.284597,
+      "b": 2.498574
+    },
+    "vowel": {
+      "a": 0.28206,
+      "b": 2.648823
+    },
+    "other": {
+      "a": 0.265846,
+      "b": 2.554811
+    }
+  }
+}

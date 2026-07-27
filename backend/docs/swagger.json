@@ -51,6 +51,83 @@
                 }
             }
         },
+        "/assessments/pre-assessment": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lấy toàn bộ bộ câu hỏi Pre-Assessment trong onboarding bằng MỘT request. Response gồm metadata của bộ đề + danh sách câu hỏi đã sắp xếp theo `order`. Hỗ trợ chọn bộ đề cụ thể qua `code` hoặc lọc theo cấp độ CEFR qua `level` để mở rộng (A1, A2, B1…).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Assessment"
+                ],
+                "summary": "Bộ câu hỏi Pre-Assessment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Slug bộ đề cụ thể (vd: pre_assessment_default)",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "A1",
+                            "A2",
+                            "B1",
+                            "B2",
+                            "C1",
+                            "C2"
+                        ],
+                        "type": "string",
+                        "description": "Cấp độ CEFR",
+                        "name": "level",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Bộ câu hỏi pre-assessment",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.AssessmentSet"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Tham số không hợp lệ",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Chưa có bộ đề active",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/guest": {
             "post": {
                 "description": "Tạo tài khoản khách tạm thời (BR-FREE-04). Giới hạn tính năng, có thể upgrade sau.",
@@ -813,6 +890,64 @@
                 }
             }
         },
+        "/daily/challenges/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả TOÀN BỘ challenge theo id trong MỘT request: metadata + danh sách item đã resolve sẵn nội dung (word/sentence kèm IPA \u0026 audio, passage kèm các câu). Dùng cho màn challenge; client navigate vào chỉ với challenge_id rồi gọi endpoint này. Hoạt động cho cả challenge hôm nay lẫn challenge cũ deep-link từ history.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Daily"
+                ],
+                "summary": "Chi tiết Daily Challenge (full nội dung)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Challenge UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Full challenge",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.DailyChallenge"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Challenge not found",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/daily/history": {
             "get": {
                 "security": [
@@ -842,7 +977,7 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/domain.DailyHistoryItem"
+                                                "$ref": "#/definitions/service.DailyHistoryItem"
                                             }
                                         }
                                     }
@@ -859,24 +994,24 @@
                 }
             }
         },
-        "/daily/today": {
+        "/daily/mission": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Trả nội dung challenge ngày hôm nay kèm completion status của user (FR-DAILY-01, S27).",
+                "description": "Trạng thái nhiệm vụ luyện tập hôm nay (theo timezone user): goal_minutes, minutes_done, percent, completed, status. Dùng cho widget \"Xuất sắc! 15/15 phút\" ở Home.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Daily"
                 ],
-                "summary": "Daily Challenge hôm nay",
+                "summary": "Nhiệm vụ hàng ngày (mục tiêu phút)",
                 "responses": {
                     "200": {
-                        "description": "Today's challenge",
+                        "description": "Mission status",
                         "schema": {
                             "allOf": [
                                 {
@@ -886,7 +1021,118 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/domain.DailyChallengeData"
+                                            "$ref": "#/definitions/service.DailyMission"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/daily/mission/heartbeat": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Client gửi DELTA số giây active kể từ lần gửi trước (1–3600). Server cộng dồn vào tổng hôm nay và trả trạng thái mission mới nhất (BR-DAILY). Gửi delta, không gửi tổng tích lũy.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Daily"
+                ],
+                "summary": "Cộng dồn thời gian luyện tập",
+                "parameters": [
+                    {
+                        "description": "Active seconds delta",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "seconds": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated mission status",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.DailyMission"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/daily/today": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trả SUMMARY nhẹ của challenge hôm nay (theo timezone user) cho card ở Home: title, category, banner, item_count, user_status. KHÔNG kèm nội dung item. Khi user mở challenge, dùng challenge_id gọi GET /daily/challenges/{id} để lấy full nội dung (FR-DAILY-01, S27).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Daily"
+                ],
+                "summary": "Daily Challenge hôm nay (summary cho Home)",
+                "responses": {
+                    "200": {
+                        "description": "Today's challenge summary (available=false nếu chưa có challenge)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.DailyChallengeSummary"
                                         }
                                     }
                                 }
@@ -1408,6 +1654,49 @@
                 }
             }
         },
+        "/home": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Gộp toàn bộ dữ liệu Home trong MỘT request: header (lời chào + streak), nhiệm vụ hàng ngày (mục tiêu phút), thử thách hôm nay (summary), và danh sách card chế độ luyện tập. Các phần degrade độc lập — phần nào lỗi trả null, không làm hỏng cả Home.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Home"
+                ],
+                "summary": "Màn hình Home (aggregate)",
+                "responses": {
+                    "200": {
+                        "description": "Home payload",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/domain.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.Home"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/iap/webhook/apple": {
             "post": {
                 "description": "Nhận server notifications từ Apple (subscription renewed, canceled, refunded).",
@@ -1620,7 +1909,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Cập nhật goal, level, accent, daily_goal, default_scoring_level, timezone. Chỉ gửi field cần đổi.",
+                "description": "Cập nhật goal, level, accent, daily_goal_items, daily_goal_minutes, default_scoring_level, display_name, avatar_url, timezone. Chỉ gửi field cần đổi.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3401,61 +3690,6 @@
                 }
             }
         },
-        "domain.DailyChallengeData": {
-            "type": "object",
-            "properties": {
-                "available": {
-                    "type": "boolean"
-                },
-                "banner_url": {
-                    "type": "string"
-                },
-                "category": {
-                    "type": "string"
-                },
-                "challenge_id": {
-                    "type": "string"
-                },
-                "content_item_id": {
-                    "type": "string"
-                },
-                "date": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "moderated": {
-                    "type": "boolean"
-                },
-                "passage_id": {
-                    "type": "string"
-                },
-                "user_status": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.DailyHistoryItem": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "completed_at": {
-                    "type": "string"
-                },
-                "date": {
-                    "type": "string"
-                },
-                "score": {
-                    "type": "number"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "domain.DrillStatusData": {
             "type": "object",
             "properties": {
@@ -4134,9 +4368,17 @@
         "handler.updateMeRequest": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
                 "daily_goal_items": {
                     "type": "integer",
                     "maximum": 50,
+                    "minimum": 1
+                },
+                "daily_goal_minutes": {
+                    "type": "integer",
+                    "maximum": 120,
                     "minimum": 1
                 },
                 "default_scoring_level": {
@@ -4198,6 +4440,67 @@
                 }
             }
         },
+        "service.AssessmentQuestion": {
+            "type": "object",
+            "properties": {
+                "difficulty": {
+                    "type": "integer"
+                },
+                "expected_duration": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "phonetic": {
+                    "type": "string"
+                },
+                "sample_audio_url": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.AssessmentSet": {
+            "type": "object",
+            "properties": {
+                "cefr_level": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "locale": {
+                    "type": "string"
+                },
+                "question_count": {
+                    "type": "integer"
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.AssessmentQuestion"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "service.ContentItem": {
             "type": "object",
             "properties": {
@@ -4229,6 +4532,200 @@
                     "type": "string"
                 },
                 "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.DailyChallenge": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "banner_url": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "challenge_id": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "item_count": {
+                    "type": "integer"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.DailyChallengeItem"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "moderated": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user_status": {
+                    "description": "completed | in_progress | missed | null",
+                    "type": "string"
+                }
+            }
+        },
+        "service.DailyChallengeItem": {
+            "type": "object",
+            "properties": {
+                "content_item": {
+                    "$ref": "#/definitions/service.ContentItem"
+                },
+                "kind": {
+                    "description": "word | sentence | passage",
+                    "type": "string"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "passage": {
+                    "$ref": "#/definitions/service.DailyPassage"
+                }
+            }
+        },
+        "service.DailyChallengeSummary": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "banner_url": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "challenge_id": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "item_count": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "moderated": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user_status": {
+                    "description": "completed | in_progress | missed | null",
+                    "type": "string"
+                }
+            }
+        },
+        "service.DailyHistoryItem": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "challenge_id": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.DailyMission": {
+            "type": "object",
+            "properties": {
+                "completed": {
+                    "type": "boolean"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "goal_minutes": {
+                    "type": "integer"
+                },
+                "just_completed": {
+                    "type": "boolean"
+                },
+                "minutes_done": {
+                    "description": "capped at goal for \"X/X\" display",
+                    "type": "integer"
+                },
+                "percent": {
+                    "description": "0..100 (capped)",
+                    "type": "integer"
+                },
+                "seconds_done": {
+                    "description": "raw, may exceed goal",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "not_started | in_progress | completed",
+                    "type": "string"
+                },
+                "xp_earned": {
+                    "description": "XP earned today from the mission",
+                    "type": "integer"
+                }
+            }
+        },
+        "service.DailyPassage": {
+            "type": "object",
+            "properties": {
+                "difficulty": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "sentence_count": {
+                    "type": "integer"
+                },
+                "sentences": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.PassageSentenceItem"
+                    }
+                },
+                "source": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "topic": {
                     "type": "string"
                 }
             }
@@ -4274,6 +4771,46 @@
                 },
                 "tongue_position_vi": {
                     "type": "string"
+                }
+            }
+        },
+        "service.Home": {
+            "type": "object",
+            "properties": {
+                "challenge": {
+                    "$ref": "#/definitions/service.DailyChallengeSummary"
+                },
+                "daily_mission": {
+                    "$ref": "#/definitions/service.DailyMission"
+                },
+                "header": {
+                    "$ref": "#/definitions/service.HomeHeader"
+                },
+                "practice_modes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.PracticeModeCard"
+                    }
+                }
+            }
+        },
+        "service.HomeHeader": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "current_streak": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "last_active_date": {
+                    "type": "string"
+                },
+                "longest_streak": {
+                    "type": "integer"
                 }
             }
         },
@@ -4412,6 +4949,32 @@
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PracticeModeCard": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string"
+                },
+                "is_premium": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "route": {
+                    "type": "string"
+                },
+                "subtitle": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -4591,10 +5154,16 @@
                 "auth_provider": {
                     "type": "string"
                 },
+                "avatar_url": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "daily_goal_items": {
+                    "type": "integer"
+                },
+                "daily_goal_minutes": {
                     "type": "integer"
                 },
                 "default_scoring_level": {

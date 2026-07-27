@@ -13,19 +13,21 @@ import (
 
 // UserProfile is the public user profile DTO.
 type UserProfile struct {
-	ID                  uuid.UUID  `json:"id"`
-	AuthProvider        string     `json:"auth_provider"`
-	Email               *string    `json:"email,omitempty"`
-	DisplayName         *string    `json:"display_name,omitempty"`
-	Goal                *string    `json:"goal,omitempty"`
-	Level               *string    `json:"level,omitempty"`
-	DefaultScoringLevel string     `json:"default_scoring_level"`
-	TargetAccent        string     `json:"target_accent"`
-	DailyGoalItems      int        `json:"daily_goal_items"`
-	Timezone            string     `json:"timezone"`
-	IsGuest             bool       `json:"is_guest"`
-	OnboardingCompleted bool       `json:"onboarding_completed"`
-	CreatedAt           time.Time  `json:"created_at"`
+	ID                  uuid.UUID `json:"id"`
+	AuthProvider        string    `json:"auth_provider"`
+	Email               *string   `json:"email,omitempty"`
+	DisplayName         *string   `json:"display_name,omitempty"`
+	AvatarURL           *string   `json:"avatar_url,omitempty"`
+	Goal                *string   `json:"goal,omitempty"`
+	Level               *string   `json:"level,omitempty"`
+	DefaultScoringLevel string    `json:"default_scoring_level"`
+	TargetAccent        string    `json:"target_accent"`
+	DailyGoalItems      int       `json:"daily_goal_items"`
+	DailyGoalMinutes    int       `json:"daily_goal_minutes"`
+	Timezone            string    `json:"timezone"`
+	IsGuest             bool      `json:"is_guest"`
+	OnboardingCompleted bool      `json:"onboarding_completed"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
 // NotifPrefs is notification preferences DTO.
@@ -51,8 +53,10 @@ type UpdateProfileInput struct {
 	Level               string
 	TargetAccent        string
 	DailyGoalItems      *int
+	DailyGoalMinutes    *int
 	DefaultScoringLevel string
 	DisplayName         *string
+	AvatarURL           *string
 	Timezone            *string
 }
 
@@ -69,8 +73,8 @@ func NewMeService(db *pgxpool.Pool) *MeService {
 // GetProfile retrieves the user profile.
 func (s *MeService) GetProfile(ctx context.Context, userID uuid.UUID) (*UserProfile, error) {
 	row := s.db.QueryRow(ctx,
-		`SELECT id, auth_provider, email, display_name, goal, level,
-		        default_scoring_level, target_accent, daily_goal_items,
+		`SELECT id, auth_provider, email, display_name, avatar_url, goal, level,
+		        default_scoring_level, target_accent, daily_goal_items, daily_goal_minutes,
 		        timezone, is_guest, onboarding_completed, created_at
 		 FROM users
 		 WHERE id = $1 AND deleted_at IS NULL`,
@@ -78,10 +82,10 @@ func (s *MeService) GetProfile(ctx context.Context, userID uuid.UUID) (*UserProf
 
 	p := &UserProfile{}
 	if err := row.Scan(
-		&p.ID, &p.AuthProvider, &p.Email, &p.DisplayName,
+		&p.ID, &p.AuthProvider, &p.Email, &p.DisplayName, &p.AvatarURL,
 		&p.Goal, &p.Level, &p.DefaultScoringLevel, &p.TargetAccent,
-		&p.DailyGoalItems, &p.Timezone, &p.IsGuest, &p.OnboardingCompleted,
-		&p.CreatedAt,
+		&p.DailyGoalItems, &p.DailyGoalMinutes, &p.Timezone, &p.IsGuest,
+		&p.OnboardingCompleted, &p.CreatedAt,
 	); err != nil {
 		return nil, fmt.Errorf("get profile: %w", apperrors.ErrNotFound)
 	}
@@ -98,10 +102,13 @@ func (s *MeService) UpdateProfile(ctx context.Context, userID uuid.UUID, in Upda
 		   daily_goal_items      = COALESCE($5, daily_goal_items),
 		   default_scoring_level = COALESCE(NULLIF($6,''), default_scoring_level),
 		   display_name          = COALESCE($7, display_name),
-		   timezone              = COALESCE($8, timezone)
+		   timezone              = COALESCE($8, timezone),
+		   avatar_url            = COALESCE($9, avatar_url),
+		   daily_goal_minutes    = COALESCE($10, daily_goal_minutes)
 		 WHERE id = $1 AND deleted_at IS NULL`,
 		userID, in.Goal, in.Level, in.TargetAccent,
 		in.DailyGoalItems, in.DefaultScoringLevel, in.DisplayName, in.Timezone,
+		in.AvatarURL, in.DailyGoalMinutes,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update profile: %w", err)
@@ -129,8 +136,8 @@ func (s *MeService) SyncData(ctx context.Context, userID uuid.UUID) (map[string]
 	}
 	// Return condensed sync payload; extend as more state is needed
 	return map[string]any{
-		"profile":    profile,
-		"synced_at":  time.Now().UTC(),
+		"profile":   profile,
+		"synced_at": time.Now().UTC(),
 	}, nil
 }
 

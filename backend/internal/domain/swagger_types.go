@@ -32,11 +32,11 @@ type AppConfigData map[string]interface{}
 
 // LegalDocData là nội dung một legal document.
 type LegalDocData struct {
-	ID        string  `json:"id"`
-	DocType   string  `json:"doc_type"`
-	Version   int     `json:"version"`
-	ContentMD string  `json:"content_md"`
-	Locale    string  `json:"locale"`
+	ID        string `json:"id"`
+	DocType   string `json:"doc_type"`
+	Version   int    `json:"version"`
+	ContentMD string `json:"content_md"`
+	Locale    string `json:"locale"`
 }
 
 // ─── Coach / Progress ────────────────────────────────────────────────────────
@@ -99,34 +99,13 @@ type BadgeItem struct {
 
 // SyncData là payload đồng bộ đa thiết bị.
 type SyncData struct {
-	Profile   interface{} `json:"profile"`
-	SyncedAt  time.Time   `json:"synced_at"`
+	Profile  interface{} `json:"profile"`
+	SyncedAt time.Time   `json:"synced_at"`
 }
 
 // ─── Daily ───────────────────────────────────────────────────────────────────
-
-// DailyChallengeData là nội dung daily challenge.
-type DailyChallengeData struct {
-	ChallengeID   string  `json:"challenge_id,omitempty"`
-	Date          string  `json:"date"`
-	PassageID     *string `json:"passage_id,omitempty"`
-	ContentItemID *string `json:"content_item_id,omitempty"`
-	Category      string  `json:"category,omitempty"`
-	BannerURL     *string `json:"banner_url,omitempty"`
-	Moderated     bool    `json:"moderated"`
-	UserStatus    *string `json:"user_status,omitempty"`
-	Available     bool    `json:"available,omitempty"`
-	Message       string  `json:"message,omitempty"`
-}
-
-// DailyHistoryItem là một entry trong lịch sử daily challenge.
-type DailyHistoryItem struct {
-	Date        string     `json:"date"`
-	Category    string     `json:"category"`
-	Status      string     `json:"status"`
-	Score       *float64   `json:"score,omitempty"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-}
+// Daily Challenge DTOs sống trong package service (service.DailyChallenge,
+// service.DailyHistoryItem) vì chúng nhúng nội dung đã resolve.
 
 // ─── Exam ─────────────────────────────────────────────────────────────────────
 
@@ -142,9 +121,9 @@ type ExamPromptItem struct {
 
 // ExamSessionData là thông tin một exam session.
 type ExamSessionData struct {
-	SessionID string  `json:"session_id"`
-	ExamType  string  `json:"exam_type"`
-	Status    string  `json:"status"`
+	SessionID string   `json:"session_id"`
+	ExamType  string   `json:"exam_type"`
+	Status    string   `json:"status"`
 	BandScore *float64 `json:"band_score,omitempty"`
 	CEFRLevel *string  `json:"cefr_level,omitempty"`
 }
@@ -176,19 +155,19 @@ type PlanItem struct {
 
 // ListenDrillData là data khởi tạo một listen drill.
 type ListenDrillData struct {
-	DrillID    string          `json:"drill_id"`
-	TotalItems int             `json:"total_items"`
-	HeartsLeft int             `json:"hearts_left"`
+	DrillID    string           `json:"drill_id"`
+	TotalItems int              `json:"total_items"`
+	HeartsLeft int              `json:"hearts_left"`
 	Pairs      []ListenPairItem `json:"pairs"`
 }
 
 // ListenPairItem là một cặp âm trong drill.
 type ListenPairItem struct {
-	PairID  string  `json:"pair_id"`
-	WordA   string  `json:"word_a"`
-	WordB   string  `json:"word_b"`
-	AudioA  *string `json:"audio_a,omitempty"`
-	AudioB  *string `json:"audio_b,omitempty"`
+	PairID string  `json:"pair_id"`
+	WordA  string  `json:"word_a"`
+	WordB  string  `json:"word_b"`
+	AudioA *string `json:"audio_a,omitempty"`
+	AudioB *string `json:"audio_b,omitempty"`
 }
 
 // AnswerResultData là kết quả sau khi nộp đáp án.

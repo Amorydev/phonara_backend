@@ -49,42 +49,6 @@ definitions:
           $ref: '#/definitions/domain.SnapshotPoint'
         type: array
     type: object
-  domain.DailyChallengeData:
-    properties:
-      available:
-        type: boolean
-      banner_url:
-        type: string
-      category:
-        type: string
-      challenge_id:
-        type: string
-      content_item_id:
-        type: string
-      date:
-        type: string
-      message:
-        type: string
-      moderated:
-        type: boolean
-      passage_id:
-        type: string
-      user_status:
-        type: string
-    type: object
-  domain.DailyHistoryItem:
-    properties:
-      category:
-        type: string
-      completed_at:
-        type: string
-      date:
-        type: string
-      score:
-        type: number
-      status:
-        type: string
-    type: object
   domain.DrillStatusData:
     properties:
       correct_count:
@@ -539,8 +503,14 @@ definitions:
     type: object
   handler.updateMeRequest:
     properties:
+      avatar_url:
+        type: string
       daily_goal_items:
         maximum: 50
+        minimum: 1
+        type: integer
+      daily_goal_minutes:
+        maximum: 120
         minimum: 1
         type: integer
       default_scoring_level:
@@ -585,6 +555,46 @@ definitions:
     - receipt
     - store
     type: object
+  service.AssessmentQuestion:
+    properties:
+      difficulty:
+        type: integer
+      expected_duration:
+        type: integer
+      id:
+        type: string
+      order:
+        type: integer
+      phonetic:
+        type: string
+      sample_audio_url:
+        type: string
+      text:
+        type: string
+    type: object
+  service.AssessmentSet:
+    properties:
+      cefr_level:
+        type: string
+      code:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      locale:
+        type: string
+      question_count:
+        type: integer
+      questions:
+        items:
+          $ref: '#/definitions/service.AssessmentQuestion'
+        type: array
+      title:
+        type: string
+      type:
+        type: string
+    type: object
   service.ContentItem:
     properties:
       audio_url_uk:
@@ -606,6 +616,136 @@ definitions:
       topic:
         type: string
       type:
+        type: string
+    type: object
+  service.DailyChallenge:
+    properties:
+      available:
+        type: boolean
+      banner_url:
+        type: string
+      category:
+        type: string
+      challenge_id:
+        type: string
+      date:
+        type: string
+      description:
+        type: string
+      item_count:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/service.DailyChallengeItem'
+        type: array
+      message:
+        type: string
+      moderated:
+        type: boolean
+      title:
+        type: string
+      user_status:
+        description: completed | in_progress | missed | null
+        type: string
+    type: object
+  service.DailyChallengeItem:
+    properties:
+      content_item:
+        $ref: '#/definitions/service.ContentItem'
+      kind:
+        description: word | sentence | passage
+        type: string
+      order:
+        type: integer
+      passage:
+        $ref: '#/definitions/service.DailyPassage'
+    type: object
+  service.DailyChallengeSummary:
+    properties:
+      available:
+        type: boolean
+      banner_url:
+        type: string
+      category:
+        type: string
+      challenge_id:
+        type: string
+      date:
+        type: string
+      description:
+        type: string
+      item_count:
+        type: integer
+      message:
+        type: string
+      moderated:
+        type: boolean
+      title:
+        type: string
+      user_status:
+        description: completed | in_progress | missed | null
+        type: string
+    type: object
+  service.DailyHistoryItem:
+    properties:
+      category:
+        type: string
+      challenge_id:
+        type: string
+      completed_at:
+        type: string
+      date:
+        type: string
+      score:
+        type: number
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  service.DailyMission:
+    properties:
+      completed:
+        type: boolean
+      date:
+        type: string
+      goal_minutes:
+        type: integer
+      just_completed:
+        type: boolean
+      minutes_done:
+        description: capped at goal for "X/X" display
+        type: integer
+      percent:
+        description: 0..100 (capped)
+        type: integer
+      seconds_done:
+        description: raw, may exceed goal
+        type: integer
+      status:
+        description: not_started | in_progress | completed
+        type: string
+      xp_earned:
+        description: XP earned today from the mission
+        type: integer
+    type: object
+  service.DailyPassage:
+    properties:
+      difficulty:
+        type: integer
+      id:
+        type: string
+      sentence_count:
+        type: integer
+      sentences:
+        items:
+          $ref: '#/definitions/service.PassageSentenceItem'
+        type: array
+      source:
+        type: string
+      title:
+        type: string
+      topic:
         type: string
     type: object
   service.ErrorProfileDTO:
@@ -636,6 +776,32 @@ definitions:
         type: string
       tongue_position_vi:
         type: string
+    type: object
+  service.Home:
+    properties:
+      challenge:
+        $ref: '#/definitions/service.DailyChallengeSummary'
+      daily_mission:
+        $ref: '#/definitions/service.DailyMission'
+      header:
+        $ref: '#/definitions/service.HomeHeader'
+      practice_modes:
+        items:
+          $ref: '#/definitions/service.PracticeModeCard'
+        type: array
+    type: object
+  service.HomeHeader:
+    properties:
+      avatar_url:
+        type: string
+      current_streak:
+        type: integer
+      display_name:
+        type: string
+      last_active_date:
+        type: string
+      longest_streak:
+        type: integer
     type: object
   service.IngestResultOutput:
     properties:
@@ -725,6 +891,23 @@ definitions:
       phoneme:
         type: string
       status:
+        type: string
+    type: object
+  service.PracticeModeCard:
+    properties:
+      icon:
+        type: string
+      is_premium:
+        type: boolean
+      key:
+        type: string
+      order:
+        type: integer
+      route:
+        type: string
+      subtitle:
+        type: string
+      title:
         type: string
     type: object
   service.PrivacyPrefs:
@@ -841,9 +1024,13 @@ definitions:
     properties:
       auth_provider:
         type: string
+      avatar_url:
+        type: string
       created_at:
         type: string
       daily_goal_items:
+        type: integer
+      daily_goal_minutes:
         type: integer
       default_scoring_level:
         type: string
@@ -898,6 +1085,57 @@ paths:
       summary: App configuration flags
       tags:
       - System
+  /assessments/pre-assessment:
+    get:
+      description: Lấy toàn bộ bộ câu hỏi Pre-Assessment trong onboarding bằng MỘT
+        request. Response gồm metadata của bộ đề + danh sách câu hỏi đã sắp xếp theo
+        `order`. Hỗ trợ chọn bộ đề cụ thể qua `code` hoặc lọc theo cấp độ CEFR qua
+        `level` để mở rộng (A1, A2, B1…).
+      parameters:
+      - description: 'Slug bộ đề cụ thể (vd: pre_assessment_default)'
+        in: query
+        name: code
+        type: string
+      - description: Cấp độ CEFR
+        enum:
+        - A1
+        - A2
+        - B1
+        - B2
+        - C1
+        - C2
+        in: query
+        name: level
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Bộ câu hỏi pre-assessment
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.AssessmentSet'
+              type: object
+        "400":
+          description: Tham số không hợp lệ
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Chưa có bộ đề active
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Bộ câu hỏi Pre-Assessment
+      tags:
+      - Assessment
   /auth/guest:
     post:
       description: Tạo tài khoản khách tạm thời (BR-FREE-04). Giới hạn tính năng,
@@ -1352,6 +1590,44 @@ paths:
       summary: Danh sách từ vựng
       tags:
       - Content
+  /daily/challenges/{id}:
+    get:
+      description: 'Trả TOÀN BỘ challenge theo id trong MỘT request: metadata + danh
+        sách item đã resolve sẵn nội dung (word/sentence kèm IPA & audio, passage
+        kèm các câu). Dùng cho màn challenge; client navigate vào chỉ với challenge_id
+        rồi gọi endpoint này. Hoạt động cho cả challenge hôm nay lẫn challenge cũ
+        deep-link từ history.'
+      parameters:
+      - description: Challenge UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Full challenge
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.DailyChallenge'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "404":
+          description: Challenge not found
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Chi tiết Daily Challenge (full nội dung)
+      tags:
+      - Daily
   /daily/history:
     get:
       description: 'Trả 30 ngày gần nhất: date, category, status (completed/missed),
@@ -1367,7 +1643,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/domain.DailyHistoryItem'
+                    $ref: '#/definitions/service.DailyHistoryItem'
                   type: array
               type: object
         "401":
@@ -1379,21 +1655,22 @@ paths:
       summary: Lịch sử Daily Challenge
       tags:
       - Daily
-  /daily/today:
+  /daily/mission:
     get:
-      description: Trả nội dung challenge ngày hôm nay kèm completion status của user
-        (FR-DAILY-01, S27).
+      description: 'Trạng thái nhiệm vụ luyện tập hôm nay (theo timezone user): goal_minutes,
+        minutes_done, percent, completed, status. Dùng cho widget "Xuất sắc! 15/15
+        phút" ở Home.'
       produces:
       - application/json
       responses:
         "200":
-          description: Today's challenge
+          description: Mission status
           schema:
             allOf:
             - $ref: '#/definitions/domain.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.DailyChallengeData'
+                  $ref: '#/definitions/service.DailyMission'
               type: object
         "401":
           description: Unauthorized
@@ -1401,7 +1678,76 @@ paths:
             $ref: '#/definitions/domain.Response'
       security:
       - BearerAuth: []
-      summary: Daily Challenge hôm nay
+      summary: Nhiệm vụ hàng ngày (mục tiêu phút)
+      tags:
+      - Daily
+  /daily/mission/heartbeat:
+    post:
+      consumes:
+      - application/json
+      description: Client gửi DELTA số giây active kể từ lần gửi trước (1–3600). Server
+        cộng dồn vào tổng hôm nay và trả trạng thái mission mới nhất (BR-DAILY). Gửi
+        delta, không gửi tổng tích lũy.
+      parameters:
+      - description: Active seconds delta
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            seconds:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated mission status
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.DailyMission'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+        "422":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Cộng dồn thời gian luyện tập
+      tags:
+      - Daily
+  /daily/today:
+    get:
+      description: 'Trả SUMMARY nhẹ của challenge hôm nay (theo timezone user) cho
+        card ở Home: title, category, banner, item_count, user_status. KHÔNG kèm nội
+        dung item. Khi user mở challenge, dùng challenge_id gọi GET /daily/challenges/{id}
+        để lấy full nội dung (FR-DAILY-01, S27).'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Today's challenge summary (available=false nếu chưa có challenge)
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.DailyChallengeSummary'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Daily Challenge hôm nay (summary cho Home)
       tags:
       - Daily
   /events:
@@ -1706,6 +2052,33 @@ paths:
       summary: Liveness probe
       tags:
       - Probes
+  /home:
+    get:
+      description: 'Gộp toàn bộ dữ liệu Home trong MỘT request: header (lời chào +
+        streak), nhiệm vụ hàng ngày (mục tiêu phút), thử thách hôm nay (summary),
+        và danh sách card chế độ luyện tập. Các phần degrade độc lập — phần nào lỗi
+        trả null, không làm hỏng cả Home.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Home payload
+          schema:
+            allOf:
+            - $ref: '#/definitions/domain.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.Home'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.Response'
+      security:
+      - BearerAuth: []
+      summary: Màn hình Home (aggregate)
+      tags:
+      - Home
   /iap/webhook/apple:
     post:
       consumes:
@@ -1833,8 +2206,9 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Cập nhật goal, level, accent, daily_goal, default_scoring_level,
-        timezone. Chỉ gửi field cần đổi.
+      description: Cập nhật goal, level, accent, daily_goal_items, daily_goal_minutes,
+        default_scoring_level, display_name, avatar_url, timezone. Chỉ gửi field cần
+        đổi.
       parameters:
       - description: Profile update
         in: body
