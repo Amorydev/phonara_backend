@@ -136,3 +136,8 @@ help:
 	@echo "  docker-up      Start all services via Docker Compose"
 	@echo "  docker-down    Stop all services"
 	@echo "  tidy           Tidy go.mod"
+
+.PHONY: env-check
+## env-check: đối chiếu .env với luật trong config.validate() — chạy TRƯỚC khi khởi động
+env-check:
+	@./scripts/env-check.sh $(FILE)

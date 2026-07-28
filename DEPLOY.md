@@ -92,7 +92,7 @@ git clone <repo> && cd Phonara_Backend/backend && cp .env.prod.example .env && c
 Sinh khoá bí mật:
 
 ```bash
-for k in JWT_SECRET DB_PASSWORD REDIS_PASSWORD S3_SECRET_KEY; do echo "$k=$(openssl rand -base64 32 | tr -d '/+=' | head -c 40)"; done
+for k in JWT_ACCESS_SECRET JWT_REFRESH_SECRET DB_PASSWORD REDIS_PASSWORD S3_SECRET_KEY; do echo "$k=$(openssl rand -base64 32 | tr -d '/+=' | head -c 40)"; done
 ```
 
 Dán vào `.env`, rồi điền `DOMAIN`, `TLS_EMAIL`, `AZURE_TTS_KEY`.
