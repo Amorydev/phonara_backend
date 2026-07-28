@@ -180,9 +180,13 @@ services:
 
   # Dọn audio mẫu không còn dòng CSDL nào trỏ tới.
   #
-  #   docker compose -f docker-compose.yml -f docker-compose.behind-proxy.yml \
-  #     run --rm prune-samples             # chạy khô, chỉ liệt kê
-  #   ... run --rm prune-samples -delete   # xoá thật
+  #   docker compose -f docker-compose.behind-proxy.yml run --rm prune-samples
+  #   docker compose -f docker-compose.behind-proxy.yml run --rm prune-samples -delete
+  #
+  # File này TỰ CHỨA — KHÔNG ghép thêm `-f docker-compose.yml`. Ghép vào thì compose GỘP
+  # `ports` của hai file (gộp chứ không thay thế), kéo theo 5432/6379/9000 và api:8080 từ
+  # bản dev: DB với Redis phơi ra internet, api đi vòng qua nginx lẫn TLS, và postgres
+  # không khởi động được nếu máy đã có tiến trình khác giữ 5432. Đã xảy ra thật.
   #
   # KHÔNG có `-delete` trong command: mặc định phải là chạy khô. Xem danh sách trước rồi
   # mới xoá — object đã xoá không lấy lại được.
