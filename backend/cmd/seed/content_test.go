@@ -219,3 +219,35 @@ func extractOnboardingInsert(t *testing.T, src string) string {
 	}
 	return src[i : i+end]
 }
+
+func TestOnboardingSeedDoesNotChurnRows(t *testing.T) {
+	t.Parallel()
+	// Audio mẫu lưu theo `sample/assessment/<question id>.mp3`, nên DANH TÍNH DÒNG là thứ
+	// giữ liên kết giữa câu hỏi và file MP3 đã trả tiền sinh ra.
+	//
+	// Bản seed cũ chèn cả 23 câu vào bộ onboarding, xoá 17 câu thừa, rồi đánh số lại 6 câu
+	// còn sót. Chạy lần hai thì 4 trong 6 câu bị xoá và chèn lại với UUID MỚI — audio trở
+	// thành file mồ côi trong MinIO, CSDL mất con trỏ, và client hiện nút "Nghe mẫu" chết.
+	// Đo thật sau một lần chạy lại: 2/6 câu còn audio. Hai câu sống sót đúng là hai câu có
+	// vị trí đích trùng vị trí gốc.
+	//
+	// Ràng buộc: bộ onboarding chỉ được chèn ĐÚNG các câu đã chọn, ở vị trí cuối cùng của
+	// chúng. Không xoá-rồi-chèn-lại, không đánh số lại.
+	src := readSeedMain(t)
+
+	for _, banned := range []string{
+		"NOT (order_index = ANY(",    // xoá theo danh sách giữ lại
+		"order_index = -order_index", // pha 2 của đánh số lại
+	} {
+		if strings.Contains(src, banned) {
+			t.Errorf("seed còn dùng %q — xoá + đánh số lại làm dòng đổi UUID mỗi lần chạy "+
+				"và mất audio đã sinh", banned)
+		}
+	}
+
+	// Vòng chèn phải duyệt danh sách ĐÃ CHỌN, không phải cả 23 câu.
+	if !strings.Contains(src, "for _, q := range onboarding {") {
+		t.Error("vòng chèn bộ onboarding phải duyệt `onboarding` (danh sách đã chọn), " +
+			"không phải toàn bộ `questions`")
+	}
+}

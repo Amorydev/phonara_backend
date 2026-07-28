@@ -208,7 +208,32 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 		{23, "She has a clear vision for the garage.", "/ʃi hæz ə klɪr ˈvɪʒən fɔr ðə ɡəˈrɑʒ/", "", 6, 4},
 	}
 
+	// Bộ onboarding chỉ nhận ĐÚNG các câu được chọn, đánh số 1..N ngay từ đầu.
+	//
+	// Trước đây seed chèn cả 23 câu rồi xoá 17 câu thừa rồi đánh số lại. Cách đó làm hỏng
+	// audio: mỗi lần chạy lại, câu ở vị trí 3..6 bị xoá rồi chèn lại với UUID MỚI, mà tên
+	// file audio đặt theo UUID — nên MP3 vẫn nằm trong MinIO nhưng CSDL mất con trỏ.
+	//
+	// Đo được sau một lần chạy lại: 2/6 câu còn audio. Hai câu sống sót đúng là hai câu có
+	// vị trí đích trùng vị trí gốc (1→1, 2→2), tức cùng một dòng được cập nhật tại chỗ.
+	//
+	// Chèn thẳng danh sách đã chọn thì `order_index` ổn định qua mọi lần chạy, dòng không
+	// bị luân chuyển, và audio giữ nguyên. Bỏ luôn được màn xoá + đánh số lại hai pha.
+	byOrder := make(map[int]assessmentQuestion, len(questions))
 	for _, q := range questions {
+		byOrder[q.order] = q
+	}
+	onboarding := make([]assessmentQuestion, 0, len(onboardingOrders))
+	for i, srcOrder := range onboardingOrders {
+		q, ok := byOrder[srcOrder]
+		if !ok {
+			return fmt.Errorf("onboardingOrders trỏ tới câu %d không tồn tại", srcOrder)
+		}
+		q.order = i + 1 // vị trí trình bày, không phải vị trí trong danh sách gốc
+		onboarding = append(onboarding, q)
+	}
+
+	for _, q := range onboarding {
 		_, err := pool.Exec(ctx,
 			`INSERT INTO assessment_questions
 			   (set_id, order_index, text, phonetic, sample_audio_url, expected_duration, difficulty)
@@ -235,7 +260,7 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 		}
 	}
 
-	slog.Info("seeded pre-assessment", "set_id", setID, "questions", len(questions))
+	slog.Info("seeded pre-assessment", "set_id", setID, "questions", len(onboarding))
 
 	// ── bộ benchmark: TẤT CẢ câu ──────────────────────────────────────────────
 	// Onboarding cần ngắn, benchmark cần phủ đủ. Một bộ không phục vụ được cả hai.
@@ -269,37 +294,18 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	slog.Info("seeded benchmark set", "set_id", benchID, "questions", len(questions))
 
-	// Bộ onboarding: giữ các câu đã chọn và ĐÁNH SỐ LẠI theo thứ tự trong
-	// onboardingOrders. Giữ nguyên order_index gốc thì API trả về theo thứ tự số, tức
-	// độ khó thành 1,2,5,3,4,4 — câu líu lưỡi khó nhất nhảy lên thứ ba và làm người mới
-	// nản đúng lúc họ chưa quen. order_index CHÍNH LÀ thứ tự trình bày.
+	// Dọn câu thừa còn sót từ các lần seed CŨ (khi seed chèn cả 23 câu vào bộ onboarding
+	// rồi mới xoá bớt). Với logic hiện tại thì bộ này chỉ bao giờ có đúng len(onboarding)
+	// câu, nên câu lệnh này là dọn dẹp một lần, không phải phần của luồng bình thường.
 	if _, err := pool.Exec(ctx,
 		`DELETE FROM assessment_questions
-		  WHERE set_id = $1 AND NOT (order_index = ANY($2))`,
-		setID, onboardingOrders,
+		  WHERE set_id = $1 AND order_index > $2`,
+		setID, len(onboarding),
 	); err != nil {
-		return fmt.Errorf("xoá câu thừa khỏi bộ onboarding: %w", err)
+		return fmt.Errorf("dọn câu thừa của bộ onboarding: %w", err)
 	}
 
-	// Đánh số lại hai pha: chỉ số đích có thể trùng chỉ số hiện có của hàng khác, và
-	// ràng buộc UNIQUE(set_id, order_index) sẽ chặn giữa chừng. Đẩy sang miền âm trước.
-	for i, order := range onboardingOrders {
-		if _, err := pool.Exec(ctx,
-			`UPDATE assessment_questions SET order_index = $3
-			  WHERE set_id = $1 AND order_index = $2`,
-			setID, order, -(i + 1),
-		); err != nil {
-			return fmt.Errorf("đánh số lại (pha 1) câu %d: %w", order, err)
-		}
-	}
-	if _, err := pool.Exec(ctx,
-		`UPDATE assessment_questions SET order_index = -order_index
-		  WHERE set_id = $1 AND order_index < 0`,
-		setID,
-	); err != nil {
-		return fmt.Errorf("đánh số lại (pha 2): %w", err)
-	}
-	slog.Info("bộ onboarding thu gọn", "số_câu", len(onboardingOrders))
+	slog.Info("bộ onboarding", "số_câu", len(onboarding))
 	return nil
 }
 
