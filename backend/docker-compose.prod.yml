@@ -116,6 +116,12 @@ services:
     # miễn phí trên CPU của bạn.
     expose:
       - "8000"
+    environment:
+      # Xem chú thích trong docker-compose.behind-proxy.yml. Tóm tắt: không đặt thì engine
+      # tự tính `torch_threads = cores / max_concurrent`, và trên máy 2 vCPU phép chia ra
+      # MỘT luồng cho model 316 triệu tham số. Máy nhiều core hơn thì chỉnh qua .env.
+      PE_MAX_CONCURRENT_INFERENCE: "${PE_MAX_CONCURRENT_INFERENCE:-1}"
+      PE_TORCH_THREADS: "${PE_TORCH_THREADS:-2}"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
       interval: 15s

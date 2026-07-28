@@ -81,6 +81,18 @@ services:
     restart: unless-stopped
     expose:
       - "8000"
+    environment:
+      # Không đặt hai biến này thì engine tự tính `torch_threads = cores / max_concurrent`.
+      # Trên máy 2 vCPU với mặc định `max_concurrent_inference=2`, phép chia ra ĐÚNG MỘT
+      # LUỒNG — model 316 triệu tham số chạy forward pass trên một core, còn core kia để
+      # trống chờ một request thứ hai có thể không bao giờ tới.
+      #
+      # Đổi lại: một request dùng cả hai core, hai request thì xếp hàng. Với lưu lượng thấp
+      # đây là đánh đổi đúng — độ trễ của người đang chờ quan trọng hơn thông lượng lý thuyết.
+      # Khi thật sự có nhiều người dùng đồng thời thì tăng ngược lại, và lúc đó thêm CPU
+      # mới là câu trả lời chứ không phải chia nhỏ số luồng.
+      PE_MAX_CONCURRENT_INFERENCE: "${PE_MAX_CONCURRENT_INFERENCE:-1}"
+      PE_TORCH_THREADS: "${PE_TORCH_THREADS:-2}"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
       interval: 15s
