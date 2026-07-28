@@ -1,0 +1,64 @@
+{
+  "dataset": "l2arctic",
+  "license": "CC BY-NC 4.0 — measurement only, no fitted parameters",
+  "l1": "Hindi",
+  "speakers": {
+    "ASI": 150,
+    "RRBI": 150,
+    "SVBI": 150,
+    "TNI": 150
+  },
+  "n_utterances": 600,
+  "n_phonemes": 19763,
+  "segmentation_ambiguity_rate": 0.01232834754198785,
+  "unsegmentable_chars": {},
+  "refine": "espeak",
+  "refined_symbols": 1318,
+  "error_detection_auc": 0.7771400679108006,
+  "truth_error_rate": 0.13788392450538886,
+  "diagnosis": {
+    "precision": 0.329063049485054,
+    "recall": 0.48073394495412847,
+    "f1": 0.3906949000894721
+  },
+  "omission": {
+    "precision": 0.12241992882562278,
+    "recall": 0.36058700209643607,
+    "f1": 0.18278427205100956
+  },
+  "said_accuracy": 0.6507537688442211,
+  "said_n": 796,
+  "uncertain_rate": 0.16880028335778982,
+  "per_group": {
+    "affricate": {
+      "n": 208,
+      "auc": 0.7593253968253968,
+      "error_rate": 0.1346153846153846
+    },
+    "approximant": {
+      "n": 2299,
+      "auc": 0.8133704788274482,
+      "error_rate": 0.11222270552414093
+    },
+    "fricative": {
+      "n": 3854,
+      "auc": 0.8406884413883432,
+      "error_rate": 0.2075765438505449
+    },
+    "nasal": {
+      "n": 2028,
+      "auc": 0.8524613420343311,
+      "error_rate": 0.006903353057199211
+    },
+    "stop": {
+      "n": 3586,
+      "auc": 0.645595891374701,
+      "error_rate": 0.11489124372559956
+    },
+    "vowel": {
+      "n": 7788,
+      "auc": 0.7684057062432018,
+      "error_rate": 0.15575243965074473
+    }
+  }
+}

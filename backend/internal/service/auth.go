@@ -174,8 +174,8 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput) (*AuthTokens, er
 
 func (s *AuthService) loginEmail(ctx context.Context, in LoginInput) (*AuthTokens, error) {
 	var (
-		userID   uuid.UUID
-		pwHash   string
+		userID uuid.UUID
+		pwHash string
 	)
 	err := s.db.QueryRow(ctx,
 		`SELECT id, COALESCE(password_hash, '') FROM users
@@ -223,27 +223,39 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*AuthTo
 		return nil, apperrors.New(401, "invalid refresh token", apperrors.ErrUnauthorized)
 	}
 
-	// Validate session exists and is not revoked
-	var revoked *time.Time
+	// Atomically consume the session. A SELECT followed by UPDATE lets two
+	// concurrent refresh requests both pass and mint two valid token pairs.
+	var consumed uuid.UUID
+	var storedHash string
 	err = s.db.QueryRow(ctx,
-		`SELECT revoked_at FROM auth_sessions WHERE id = $1 AND user_id = $2`,
-		claims.SessionID, claims.UserID).Scan(&revoked)
+		`UPDATE auth_sessions
+		    SET revoked_at = now()
+		   FROM users
+		  WHERE auth_sessions.id = $1
+		    AND auth_sessions.user_id = $2
+		    AND users.id = auth_sessions.user_id
+		    AND users.deleted_at IS NULL
+		    AND revoked_at IS NULL AND expires_at > now()
+		RETURNING auth_sessions.id, auth_sessions.refresh_hash`,
+		claims.SessionID, claims.UserID).Scan(&consumed, &storedHash)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, apperrors.New(401, "session not found", apperrors.ErrUnauthorized)
+		return nil, apperrors.New(401, "session expired or revoked", apperrors.ErrUnauthorized)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("fetch session: %w", err)
-	}
-	if revoked != nil {
-		return nil, apperrors.New(401, "session revoked", apperrors.ErrUnauthorized)
+		return nil, fmt.Errorf("consume refresh session: %w", err)
 	}
 
-	// Revoke old session
-	_, err = s.db.Exec(ctx,
-		`UPDATE auth_sessions SET revoked_at = now() WHERE id = $1`,
-		claims.SessionID)
-	if err != nil {
-		return nil, fmt.Errorf("revoke session: %w", err)
+	// Đối chiếu token với hash đã lưu.
+	//
+	// Trước đây `refresh_hash` được GHI nhưng không bao giờ ĐỌC, nên cột này chỉ tốn chỗ.
+	// Chữ ký JWT cộng trạng thái phiên đã chặn phần lớn tấn công, nhưng thiếu bước này thì
+	// một token cũ ĐÚNG chữ ký, ĐÚNG session_id vẫn đi lọt — ví dụ token bị rò qua log hay
+	// bản sao lưu, trong khi phiên chưa hết hạn.
+	//
+	// Kiểm SAU khi đã thu hồi phiên là có chủ đích: token sai thì phiên vẫn bị đóng, nên
+	// một lần dùng token rò rỉ sẽ giết luôn phiên đó thay vì cho thử lại.
+	if err := hash.CheckToken(refreshToken, storedHash); err != nil {
+		return nil, apperrors.New(401, "invalid refresh token", apperrors.ErrUnauthorized)
 	}
 
 	return s.issueTokens(ctx, claims.UserID, false)
@@ -312,7 +324,9 @@ func (s *AuthService) issueTokens(ctx context.Context, userID uuid.UUID, isGuest
 		return nil, err
 	}
 
-	refreshHash, _ := hash.Password(refreshToken[:8]) // store partial hash for audit
+	// SHA-256 chứ không phải bcrypt: refresh token là JWT dài hơn giới hạn 72 byte của
+	// bcrypt, và entropy cao nên không cần hàm băm chậm. Xem `hash.Token`.
+	refreshHash := hash.Token(refreshToken)
 
 	expiresAt := time.Now().Add(s.jwtMgr.RefreshTTL())
 	_, err = s.db.Exec(ctx,
@@ -334,19 +348,14 @@ func (s *AuthService) issueTokens(ctx context.Context, userID uuid.UUID, isGuest
 // verifySocialToken verifies an ID token for social providers.
 // Returns (externalID, email, displayName, error).
 func (s *AuthService) verifySocialToken(_ context.Context, idToken, provider string) (string, string, string, error) {
-	// TODO: integrate google-auth-library or JWT verification
-	// For now, return stub — real implementation validates JWT signature against JWKS
 	if idToken == "" {
 		return "", "", "", apperrors.New(401, "invalid id_token", apperrors.ErrUnauthorized)
 	}
 	_ = provider
-	// Placeholder: parse the JWT claims without full verification (MUST replace)
-	return idToken[:min(32, len(idToken))], "", "", nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	// Never derive an identity from unverified client input. Social auth remains
+	// unavailable until provider JWKS, issuer, audience, nonce and expiry are all
+	// verified.
+	return "", "", "", apperrors.New(
+		503, "social authentication is temporarily unavailable", apperrors.ErrServiceUnavail,
+	)
 }

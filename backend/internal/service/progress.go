@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -69,6 +70,15 @@ func (s *StreakService) CheckIn(ctx context.Context, userID uuid.UUID) (*StreakD
 		userID, today).Scan(&current, &longest)
 	if err != nil {
 		return nil, fmt.Errorf("check in streak: %w", err)
+	}
+
+	// Huy hiệu chuỗi ngày chỉ đổi ở đây — việc tính lại hồ sơ lỗi không chạm tới
+	// `streak_records`, nên thiếu lời gọi này thì mọi huy hiệu `streak` vĩnh viễn khoá.
+	//
+	// Lỗi chỉ log: điểm danh đã thành công, và trả lỗi sẽ khiến người học tưởng chuỗi ngày
+	// của mình bị mất.
+	if err := AwardBadges(ctx, s.db, userID); err != nil {
+		slog.Error("trao huy hiệu sau điểm danh", "user_id", userID, "err", err)
 	}
 
 	return &StreakDTO{

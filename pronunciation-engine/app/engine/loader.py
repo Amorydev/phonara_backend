@@ -73,7 +73,7 @@ class Engine:
                 self._warned_no_candidates.add(p)
                 log.warning(
                     "phoneme %r không có ứng viên nhiễu — GOP chỉ so với phương án xóa. "
-                    "Chạy r1/inventory.py rồi bổ sung vào confusion_vi.json",
+                    "Chạy r1/inventory.py rồi bổ sung vào confusion.json",
                     p,
                 )
             out.append(cands)
@@ -124,6 +124,7 @@ def load() -> Engine:
         tau_uncertain=float(raw_rules["tau_uncertain"]),
         tau_gop_low=float(raw_rules["tau_gop_low"]),
         tau_gop_high=float(raw_rules["tau_gop_high"]),
+        tau_absent=float(raw_rules["tau_absent"]),
     )
 
     _engine = Engine(

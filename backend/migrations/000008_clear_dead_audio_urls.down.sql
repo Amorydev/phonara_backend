@@ -1,0 +1,7 @@
+-- Không rollback được và cũng không nên.
+--
+-- Migration này xoá URL trỏ tới CDN không tồn tại. Khôi phục chúng nghĩa là cố ý đưa
+-- URL chết trở lại CSDL — không có giá trị nào. Audio thật do worker tts:batch sinh và
+-- ghi đè, nên chạy lại migration lên là an toàn và idempotent.
+--
+-- Cố ý để trống.

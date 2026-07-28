@@ -1,0 +1,244 @@
+# Cấu hình chạy production trên VPS.
+#
+# File RIÊNG chứ không phải override của docker-compose.yml. Lý do kỹ thuật: khi gộp nhiều
+# file, Compose **cộng dồn** danh sách `ports` chứ không thay thế — không có cách nào đóng
+# cổng đã mở ở file gốc. Mà đóng cổng Postgres/Redis/MinIO chính là điều quan trọng nhất khi
+# đưa lên internet, nên phải tách hẳn.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# KHÁC BIỆT SO VỚI BẢN DEV:
+#   1. Chỉ Caddy lộ ra internet (80/443). Postgres, Redis, MinIO, engine, api đều chỉ nằm
+#      trong mạng nội bộ Docker.
+#   2. Mọi mật khẩu đọc từ .env, không có giá trị mặc định — thiếu biến thì Compose báo lỗi
+#      ngay lúc khởi động thay vì âm thầm dùng `minioadmin`.
+#   3. Giới hạn RAM cho từng container, để một tiến trình chạy loạn không kéo sập cả máy.
+#   4. Xoay vòng log. Log JSON của Docker mặc định KHÔNG giới hạn — đây là cách phổ biến
+#      nhất khiến VPS hết đĩa sau vài tuần.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # Tiến trình DUY NHẤT lộ ra internet.
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data      # chứng chỉ Let's Encrypt — MẤT volume này là phải xin lại
+      - caddyconfig:/config
+    environment:
+      DOMAIN: ${DOMAIN:?thiếu DOMAIN trong .env}
+      TLS_EMAIL: ${TLS_EMAIL:?thiếu TLS_EMAIL trong .env}
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?thiếu DB_NAME}
+      POSTGRES_USER: ${DB_USER:?thiếu DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?thiếu DB_PASSWORD}
+    # KHÔNG có `ports`. Chỉ api/worker/migrate trong cùng mạng Docker gọi được.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Redis KHÔNG có xác thực mặc định. Trên internet mà mở cổng là mất máy trong vài giờ —
+    # bot quét cổng 6379 rồi ghi khoá SSH qua lệnh CONFIG SET. Đặt mật khẩu và không mở cổng.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?thiếu REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?thiếu S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?thiếu S3_SECRET_KEY}
+    # Không mở cổng: audio đi qua `GET /v1/media/*` của api, nơi có kiểm tiền tố `sample/`.
+    # Mở MinIO ra ngoài sẽ bỏ qua đúng lớp kiểm đó và lộ luôn bản ghi giọng người dùng.
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  pronunciation-engine:
+    build:
+      context: ../pronunciation-engine
+    restart: unless-stopped
+    # Engine là HÀM THUẦN, không auth. Lộ ra internet nghĩa là ai cũng chạy được inference
+    # miễn phí trên CPU của bạn.
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          # Đo được 451 MiB lúc chạy, nhưng PyTorch có thể vọt lúc nạp model.
+          memory: 2G
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    # Không mở cổng ra host — Caddy gọi qua mạng nội bộ.
+    expose:
+      - "8080"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+      PRONUNCIATION_ENGINE_URL: http://pronunciation-engine:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      pronunciation-engine:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Nạp nội dung. Chạy một lần rồi thoát, không phải dịch vụ thường trực.
+  #
+  #   docker compose -f docker-compose.prod.yml --profile seed run --rm seed
+  #   docker compose -f docker-compose.prod.yml --profile seed run --rm seed -tts
+  #
+  # Cần Redis vì cờ `-tts` đẩy task vào hàng đợi cho worker sinh audio.
+  seed:
+    build:
+      context: .
+      target: seed
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - seed
+    logging: *default-logging
+
+  migrate:
+    image: migrate/migrate:latest
+    volumes:
+      - ./migrations:/migrations
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable",
+        "up"
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+    logging: *default-logging
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  caddydata:
+  caddyconfig:

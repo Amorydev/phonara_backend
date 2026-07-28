@@ -1,0 +1,52 @@
+# Caddy đứng trước api, tự xin và gia hạn chứng chỉ Let's Encrypt.
+#
+# Vì sao cần HTTPS chứ không phải "để sau": Android chặn HTTP thường ở bản release
+# (cleartext traffic). App bản phát hành sẽ KHÔNG gọi được backend qua http:// dù server
+# vẫn chạy. Ngoài ra token JWT đi qua HTTP là gửi thẻ ra vào ở dạng đọc được.
+#
+# Caddy tự lo chứng chỉ, không cần certbot hay cron gia hạn.
+
+{
+	email {$TLS_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Chỉ chuyển tiếp tới api. Postgres, Redis, MinIO và engine KHÔNG có route nào ở đây —
+	# chúng không nằm trong mạng công cộng, và đó là chủ đích.
+	reverse_proxy api:8080 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	# Log dạng JSON, có xoay vòng, để chẩn đoán sự cố mà không ăn hết đĩa.
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+
+	header {
+		# Buộc trình duyệt dùng HTTPS cho các lần sau.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Backend chỉ trả JSON và audio, không có HTML — bỏ hết header lộ thông tin server.
+		-Server
+	}
+
+	# Swagger là tài liệu API nội bộ, không nên để public.
+	#
+	# Bỏ comment và đổi dải IP nếu muốn xem từ máy mình:
+	# @swagger path /swagger/*
+	# handle @swagger {
+	# 	@notme not remote_ip 1.2.3.4
+	# 	respond @notme 404
+	# 	reverse_proxy api:8080
+	# }
+	@swagger path /swagger/*
+	respond @swagger 404
+}

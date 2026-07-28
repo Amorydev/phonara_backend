@@ -25,10 +25,21 @@ SEED_SENTENCES: list[str] = [
     "She watched six short videos yesterday.",
     "Would you like to order some fresh fruit?",
     "The world needs better communication.",
+    # Ba câu phủ âm /ʒ/, thêm sau khi inventory.py phát hiện 20 câu trên không có âm này.
+    "Usually I measure my own progress.",
+    "The decision was a pleasure to make.",
+    "She has a clear vision for the garage.",
 ]
 
-# Âm mục tiêu của người học Việt (§6.1). R1 kiểm riêng xem chúng có nằm trong vocab không
-# — nếu một âm mục tiêu là OOV thì toàn bộ tính năng Fix Guide cho âm đó vô nghĩa.
-VI_TARGET_PHONEMES: list[str] = [
+# Âm tiếng Anh khó với người học L2 nói chung (§6.1). Danh sách này ban đầu chọn theo lỗi
+# của người Việt, nhưng phần lớn trùng với âm khó của mọi tiếng mẹ đẻ — `θ ð` gần như vắng
+# mặt ngoài tiếng Anh, `ʒ` hiếm, `ɹ` và `l` là cặp gây khó cho hàng loạt L1 khác nhau.
+#
+# Engine không phụ thuộc tiếng mẹ đẻ (xem docstring của app/engine/confusion.py), nên đây
+# là danh sách âm cần PHỦ trong câu kiểm, không phải hồ sơ lỗi của một nhóm người học.
+#
+# R1 kiểm riêng xem chúng có nằm trong vocab không — nếu một âm mục tiêu là OOV thì toàn bộ
+# tính năng Fix Guide cho âm đó vô nghĩa.
+TARGET_PHONEMES: list[str] = [
     "θ", "ð", "ʃ", "ʒ", "tʃ", "dʒ", "z", "v", "s", "l", "n", "ɹ", "f",
 ]

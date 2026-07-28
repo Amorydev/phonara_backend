@@ -11,11 +11,15 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hibiken/asynq"
 	"github.com/phonara/backend/internal/config"
+
+	"github.com/phonara/backend/internal/integration/storage"
+	jwtutil "github.com/phonara/backend/internal/pkg/jwt"
 	"github.com/phonara/backend/internal/server"
+	"github.com/phonara/backend/internal/service"
 	storedb "github.com/phonara/backend/internal/store/db"
 	storeredis "github.com/phonara/backend/internal/store/redis"
-	jwtutil "github.com/phonara/backend/internal/pkg/jwt"
 )
 
 func main() {
@@ -62,7 +66,39 @@ func main() {
 	)
 
 	// Server
-	srv := server.New(cfg, pool, rdb, jwtMgr)
+	audioStore, err := storage.New(ctx, storage.FactoryConfig{
+		Driver:          cfg.S3.Driver,
+		LocalRoot:       cfg.Storage.LocalRoot,
+		Endpoint:        cfg.S3.Endpoint,
+		AccessKey:       cfg.S3.AccessKey,
+		SecretKey:       cfg.S3.SecretKey,
+		Region:          cfg.S3.Region,
+		SampleBucket:    cfg.S3.SampleBucket,
+		RecordingBucket: cfg.S3.RecordingBucket,
+	})
+	if err != nil {
+		slog.Error("init audio storage", "err", err)
+		os.Exit(1)
+	}
+
+	enqueue := asynq.NewClient(asynq.RedisClientOpt{
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	defer enqueue.Close()
+
+	// Inspector đọc độ sâu hàng đợi để gate từ chối sớm khi engine quá tải.
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	defer inspector.Close()
+
+	gate := service.NewPracticeGate(pool, rdb, cfg, inspector)
+
+	srv := server.New(cfg, pool, rdb, jwtMgr, audioStore, enqueue, gate)
 
 	// Register validator
 	srv.Echo().Validator = &echoValidator{validate: validator.New()}

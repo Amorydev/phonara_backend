@@ -1,10 +1,20 @@
 """Bảng nhầm lẫn phoneme + nhóm âm.
 
-Hợp nhất hai tầng (§3.1): ứng viên tier_vi được ưu tiên lên đầu vì đó là nơi kiến thức
-miền tạo khác biệt, rồi bù thêm từ tier_general cho đủ `target_candidates`.
+Hợp nhất hai tầng (§3.1): ứng viên `tier_l1` được xếp lên đầu, rồi bù thêm từ
+`tier_general` cho đủ `target_candidates`.
+
+**Engine KHÔNG phụ thuộc tiếng mẹ đẻ của người học.** `tier_l1` từng mang tên `tier_vi`,
+nhưng đo ra nó chỉ đổi **2/232 ứng viên cuối cùng (0,9%)**: với `target_candidates = 4`,
+`tier_general` đã phủ gần hết những gì tầng kia muốn thêm, nên việc xếp lại thứ tự hầu như
+không đổi top-4.
+
+Cộng với §3.6.4 — mở tập ứng viên từ 4 lên 45 chỉ dịch PCC +0,0107, dưới cả biên độ nhiễu
+lấy mẫu — kết luận là **bảng nhầm lẫn không phải cần gạt để đặc thù hoá theo L1**. Giữ cơ
+chế hai tầng vì nó rẻ và có thể hữu ích khi đổi model, nhưng đừng trông đợi nó tạo khác
+biệt, và đừng nhân bản bảng này theo từng thứ tiếng.
 
 Ràng buộc R9 — số ứng viên phải đồng đều giữa các phoneme, nếu không GOP lệch có cấu trúc
-theo lớp âm. `validate()` cưỡng chế điều này và fail fast lúc nạp.
+theo lớp âm. `load()` cưỡng chế điều này và fail fast lúc nạp.
 """
 
 from __future__ import annotations
@@ -35,14 +45,15 @@ class ConfusionTable:
 
 def _merge(
     general: dict[str, list[str]],
-    vi: dict[str, list[str]],
+    l1: dict[str, list[str]],
     target: int,
 ) -> dict[str, tuple[str, ...]]:
     merged: dict[str, tuple[str, ...]] = {}
     for phoneme in general:
-        # tier_vi trước — lỗi người Việt là ứng viên đáng so nhất
+        # tier_l1 trước: ứng viên từ kiến thức miền được ưu tiên. Đo ra chỉ đổi 0,9%
+        # ứng viên cuối — xem docstring đầu file trước khi dựa vào tầng này.
         ordered: list[str] = []
-        for src in (vi.get(phoneme, []), general.get(phoneme, [])):
+        for src in (l1.get(phoneme, []), general.get(phoneme, [])):
             for cand in src:
                 if cand != phoneme and cand not in ordered:
                     ordered.append(cand)
@@ -60,13 +71,13 @@ def load(path: Path, vocab: dict[str, int]) -> ConfusionTable:
     raw = json.loads(path.read_text(encoding="utf-8"))
 
     general = {k: v for k, v in raw["tier_general"].items() if not k.startswith("_")}
-    vi = {k: v for k, v in raw["tier_vi"].items() if not k.startswith("_")}
+    l1 = {k: v for k, v in raw["tier_l1"].items() if not k.startswith("_")}
     groups = {k: v for k, v in raw["phone_groups"].items() if not k.startswith("_")}
     target = int(raw["target_candidates"])
 
     # ── xác thực với vocab ──────────────────────────────────────────────────────
     referenced: set[str] = set()
-    for table in (general, vi):
+    for table in (general, l1):
         for key, cands in table.items():
             referenced.add(key)
             referenced.update(cands)
@@ -80,15 +91,15 @@ def load(path: Path, vocab: dict[str, int]) -> ConfusionTable:
             "Sửa bảng hoặc kiểm tra lại model — xem r1/README.md."
         )
 
-    # tier_vi không được giới thiệu phoneme lạ mà tier_general chưa biết
-    unknown_vi = sorted(set(vi) - set(general))
-    if unknown_vi:
+    # tier_l1 không được giới thiệu phoneme lạ mà tier_general chưa biết
+    unknown_l1 = sorted(set(l1) - set(general))
+    if unknown_l1:
         raise ConfusionTableError(
-            f"tier_vi có khoá không tồn tại trong tier_general: {unknown_vi}. "
+            f"tier_l1 có khoá không tồn tại trong tier_general: {unknown_l1}. "
             "tier_general phải phủ mọi phoneme để đảm bảo ai cũng có ứng viên."
         )
 
-    candidates = _merge(general, vi, target)
+    candidates = _merge(general, l1, target)
 
     # ── ràng buộc R9: số ứng viên đồng đều ──────────────────────────────────────
     sizes = {p: len(c) for p, c in candidates.items()}

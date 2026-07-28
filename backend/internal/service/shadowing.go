@@ -13,11 +13,11 @@ import (
 
 // ShadowingProgressDTO is the progress state for a user on a passage.
 type ShadowingProgressDTO struct {
-	PassageID              string  `json:"passage_id"`
-	CurrentSentenceIndex   int     `json:"current_sentence_index"`
-	SentenceStatus         any     `json:"sentence_status"`
-	PassageAvgScore        *float64 `json:"passage_avg_score,omitempty"`
-	Completed              bool    `json:"completed"`
+	PassageID            string   `json:"passage_id"`
+	CurrentSentenceIndex int      `json:"current_sentence_index"`
+	SentenceStatus       any      `json:"sentence_status"`
+	PassageAvgScore      *float64 `json:"passage_avg_score,omitempty"`
+	Completed            bool     `json:"completed"`
 }
 
 // ShadowingSentenceInput holds the input for submitting a sentence result.
@@ -70,7 +70,8 @@ func (s *ShadowingService) GetProgress(ctx context.Context, userID uuid.UUID, pa
 // Applies 80% threshold (BR-SHAD-02) and manages skip logic (BR-SHAD-04).
 func (s *ShadowingService) SubmitSentenceResult(ctx context.Context, in ShadowingSentenceInput) (*ShadowingSentenceResult, error) {
 	// Compute score from PA raw (reuse level scoring logic)
-	scoreSvc := NewSessionService(s.db, nil, nil)
+	// nil enqueue: chỉ mượn applyLevelScoring — hàm thuần, không đẩy task nào.
+	scoreSvc := NewSessionService(s.db, nil)
 	acc, _, _, _ := scoreSvc.applyLevelScoring(in.PARaw, in.ScoringLevel)
 
 	var score float64
@@ -139,9 +140,9 @@ func (s *ShadowingService) Complete(ctx context.Context, userID uuid.UUID, passa
 	}
 
 	return map[string]any{
-		"passage_id":    passageID,
-		"completed":     true,
-		"avg_score":     progress.PassageAvgScore,
+		"passage_id": passageID,
+		"completed":  true,
+		"avg_score":  progress.PassageAvgScore,
 	}, nil
 }
 

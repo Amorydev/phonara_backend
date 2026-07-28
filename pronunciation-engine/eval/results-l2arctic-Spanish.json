@@ -1,0 +1,64 @@
+{
+  "dataset": "l2arctic",
+  "license": "CC BY-NC 4.0 — measurement only, no fitted parameters",
+  "l1": "Spanish",
+  "speakers": {
+    "EBVS": 150,
+    "ERMS": 150,
+    "MBMPS": 150,
+    "NJS": 150
+  },
+  "n_utterances": 600,
+  "n_phonemes": 20067,
+  "segmentation_ambiguity_rate": 0.016025078369905955,
+  "unsegmentable_chars": {},
+  "refine": "espeak",
+  "refined_symbols": 1364,
+  "error_detection_auc": 0.7572340264905054,
+  "truth_error_rate": 0.18293716051228384,
+  "diagnosis": {
+    "precision": 0.41362871564778464,
+    "recall": 0.4017978752383547,
+    "f1": 0.40762746994611027
+  },
+  "omission": {
+    "precision": 0.13319672131147542,
+    "recall": 0.4157782515991471,
+    "f1": 0.20175892395240558
+  },
+  "said_accuracy": 0.6524663677130045,
+  "said_n": 892,
+  "uncertain_rate": 0.15273832660587033,
+  "per_group": {
+    "affricate": {
+      "n": 288,
+      "auc": 0.5768020969855833,
+      "error_rate": 0.24305555555555555
+    },
+    "approximant": {
+      "n": 2335,
+      "auc": 0.8338695295932138,
+      "error_rate": 0.04796573875802998
+    },
+    "fricative": {
+      "n": 3924,
+      "auc": 0.7823559372802978,
+      "error_rate": 0.2996941896024465
+    },
+    "nasal": {
+      "n": 2082,
+      "auc": 0.8618174534326128,
+      "error_rate": 0.08357348703170028
+    },
+    "stop": {
+      "n": 3599,
+      "auc": 0.8327310908742386,
+      "error_rate": 0.12308974715198666
+    },
+    "vowel": {
+      "n": 7839,
+      "auc": 0.7041861863787283,
+      "error_rate": 0.216354126801888
+    }
+  }
+}

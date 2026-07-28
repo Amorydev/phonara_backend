@@ -3,8 +3,8 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
@@ -14,19 +14,26 @@ import (
 
 	_ "github.com/phonara/backend/docs" // swagger docs
 	"github.com/phonara/backend/internal/config"
-	"github.com/phonara/backend/internal/domain"
 	"github.com/phonara/backend/internal/handler"
 	jwtutil "github.com/phonara/backend/internal/pkg/jwt"
 	custmiddleware "github.com/phonara/backend/internal/server/middleware"
+
+	"github.com/hibiken/asynq"
+
+	"github.com/phonara/backend/internal/integration/storage"
+	"github.com/phonara/backend/internal/service"
 )
 
 // Server wraps Echo and all wired dependencies.
 type Server struct {
-	echo   *echo.Echo
-	cfg    *config.Config
-	db     *pgxpool.Pool
-	redis  *goredis.Client
-	jwtMgr *jwtutil.Manager
+	echo       *echo.Echo
+	cfg        *config.Config
+	db         *pgxpool.Pool
+	redis      *goredis.Client
+	jwtMgr     *jwtutil.Manager
+	audioStore storage.Store
+	enqueue    *asynq.Client
+	gate       *service.PracticeGate
 }
 
 // New creates a configured Echo server with all middleware applied.
@@ -35,23 +42,35 @@ func New(
 	db *pgxpool.Pool,
 	rdb *goredis.Client,
 	jwtMgr *jwtutil.Manager,
+	audioStore storage.Store,
+	enqueue *asynq.Client,
+	gate *service.PracticeGate,
 ) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
 	e.HTTPErrorHandler = custmiddleware.ErrorHandler
+	e.Server.ReadHeaderTimeout = 5 * time.Second
+	e.Server.ReadTimeout = 20 * time.Second
+	e.Server.WriteTimeout = 35 * time.Second
+	e.Server.IdleTimeout = 60 * time.Second
 
 	// Global middleware
 	e.Use(echomiddleware.Recover())
 	e.Use(custmiddleware.RequestLogger())
+	e.Use(echomiddleware.BodyLimit("3M"))
+	e.Use(echomiddleware.Secure())
 	e.Use(echomiddleware.CORSWithConfig(echomiddleware.CORSConfig{
-		AllowOrigins: []string{"*"},
+		AllowOrigins: cfg.Server.AllowedOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete, http.MethodOptions},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAuthorization},
 	}))
 	e.Use(echomiddleware.RequestID())
 
-	s := &Server{echo: e, cfg: cfg, db: db, redis: rdb, jwtMgr: jwtMgr}
+	s := &Server{
+		echo: e, cfg: cfg, db: db, redis: rdb, jwtMgr: jwtMgr,
+		audioStore: audioStore, enqueue: enqueue, gate: gate,
+	}
 	s.registerRoutes()
 	return s
 }
@@ -73,8 +92,9 @@ func (s *Server) registerRoutes() {
 	e.GET("/health", handler.Health)
 	e.GET("/ready", handler.Ready(s.db, s.redis))
 
-	// Swagger UI (development only — disable in production via APP_ENV check if needed)
-	e.GET("/swagger/*", echoswagger.WrapHandler)
+	if s.cfg.App.Env != "production" {
+		e.GET("/swagger/*", echoswagger.WrapHandler)
+	}
 
 	// API v1
 	v1 := e.Group("/v1")
@@ -88,10 +108,10 @@ func (s *Server) registerRoutes() {
 	auth.POST("/guest", authHandler.Guest)
 
 	// Protected routes
-	jwtMiddleware := custmiddleware.JWT(s.jwtMgr)
+	jwtMiddleware := custmiddleware.JWT(s.jwtMgr, s.db)
 
 	me := v1.Group("/me", jwtMiddleware)
-	meHandler := handler.NewMeHandler(s.db)
+	meHandler := handler.NewMeHandler(s.db, s.audioStore)
 	me.GET("", meHandler.GetMe)
 	me.PATCH("", meHandler.UpdateMe)
 	me.DELETE("", meHandler.DeleteMe)
@@ -110,7 +130,7 @@ func (s *Server) registerRoutes() {
 	speech.POST("/token", speechHandler.IssueToken)
 
 	// Practice sessions
-	sessionHandler := handler.NewSessionHandler(s.db, s.redis, s.cfg)
+	sessionHandler := handler.NewSessionHandler(s.db, s.enqueue)
 	sessions := v1.Group("/sessions", jwtMiddleware)
 	sessions.POST("", sessionHandler.Create)
 	sessions.GET("/history", sessionHandler.History)
@@ -134,6 +154,11 @@ func (s *Server) registerRoutes() {
 	assessmentHandler := handler.NewAssessmentHandler(s.db)
 	assessments := v1.Group("/assessments", jwtMiddleware)
 	assessments.GET("/pre-assessment", assessmentHandler.GetPreAssessment)
+
+	// Chấm phát âm bất đồng bộ: upload → job → poll (§ đảo chiều luồng audio)
+	assessmentJobHandler := handler.NewAssessmentJobHandler(s.db, s.audioStore, s.enqueue, s.gate)
+	assessments.POST("", assessmentJobHandler.Create)
+	assessments.GET("/:id", assessmentJobHandler.Get)
 
 	// Coach / Error Profile
 	coachHandler := handler.NewCoachHandler(s.db, s.redis)
@@ -166,7 +191,7 @@ func (s *Server) registerRoutes() {
 	v1.POST("/streak/check-in", handler.NewStreakHandler(s.db, s.redis, s.cfg).CheckIn, jwtMiddleware)
 
 	// Subscription & IAP
-	subHandler := handler.NewSubscriptionHandler(s.db, s.cfg)
+	subHandler := handler.NewSubscriptionHandler(s.db, s.redis, s.cfg)
 	sub := v1.Group("/subscription", jwtMiddleware)
 	sub.GET("", subHandler.Get)
 	sub.GET("/plans", subHandler.Plans)
@@ -200,6 +225,9 @@ func (s *Server) registerRoutes() {
 	// System
 	sysHandler := handler.NewSystemHandler(s.db)
 	v1.POST("/feedback", sysHandler.Feedback, jwtMiddleware)
+	// Audio mẫu là nội dung công khai, không phải dữ liệu người dùng → không cần token.
+	// Bản ghi của người dùng KHÔNG phục vụ qua đây.
+	v1.GET("/media/*", handler.NewMediaHandler(s.audioStore).Get)
 	v1.GET("/app-config", sysHandler.AppConfig)
 	v1.GET("/legal/:doc_type", sysHandler.Legal)
 	v1.POST("/events", sysHandler.IngestAnalytics, jwtMiddleware)
@@ -207,34 +235,3 @@ func (s *Server) registerRoutes() {
 
 // Echo returns the underlying Echo instance (for testing).
 func (s *Server) Echo() *echo.Echo { return s.echo }
-
-// healthResponse is the ready probe response.
-type healthResponse struct {
-	Status string `json:"status"`
-	DB     string `json:"db,omitempty"`
-	Redis  string `json:"redis,omitempty"`
-}
-
-// readyCheck checks DB and Redis connectivity.
-func readyCheck(ctx context.Context, db *pgxpool.Pool, rdb *goredis.Client) healthResponse {
-	resp := healthResponse{Status: "ok"}
-
-	if err := db.Ping(ctx); err != nil {
-		resp.Status = "degraded"
-		resp.DB = fmt.Sprintf("unhealthy: %s", err.Error())
-	} else {
-		resp.DB = "ok"
-	}
-
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		resp.Status = "degraded"
-		resp.Redis = fmt.Sprintf("unhealthy: %s", err.Error())
-	} else {
-		resp.Redis = "ok"
-	}
-
-	return resp
-}
-
-// These are needed here to avoid import cycles but the actual handlers are in handler package.
-var _ = domain.OK // ensure domain is imported

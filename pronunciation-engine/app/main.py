@@ -90,7 +90,18 @@ async def assess_endpoint(
     eng = loader.get()
 
     try:
-        waveform, rate = load_wav(await audio.read())
+        raw_audio = await audio.read(settings.max_audio_bytes + 1)
+        if len(raw_audio) > settings.max_audio_bytes:
+            raise AudioError(
+                ErrorCode.AUDIO_TOO_LONG,
+                f"audio vượt {settings.max_audio_bytes} byte",
+            )
+        if not reference_text or len(reference_text) > settings.max_reference_chars:
+            raise AudioError(
+                ErrorCode.G2P_FAILED,
+                f"reference_text phải có 1–{settings.max_reference_chars} ký tự",
+            )
+        waveform, rate = load_wav(raw_audio)
         duration_ms = validate(waveform, rate)
     except AudioError as exc:
         log.info("[%s] audio bị từ chối: %s", request_id, exc.message)

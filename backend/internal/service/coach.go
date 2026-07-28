@@ -12,18 +12,19 @@ import (
 
 // ErrorProfileDTO is the coach profile response.
 type ErrorProfileDTO struct {
-	OverallScore  *float64         `json:"overall_score,omitempty"`
-	TopErrors     []TopError       `json:"top_errors"`
-	PhonemeStatus []PhonemeStatus  `json:"phoneme_status"`
-	SkillStatus   []SkillStatus    `json:"skill_status"`
+	OverallScore         *float64        `json:"overall_score,omitempty"`
+	MinimalPairsProgress *float64        `json:"minimal_pairs_progress,omitempty"`
+	TopErrors            []TopError      `json:"top_errors"`
+	PhonemeStatus        []PhonemeStatus `json:"phoneme_status"`
+	SkillStatus          []SkillStatus   `json:"skill_status"`
 }
 
 // TopError is a summary of a frequent error.
 type TopError struct {
-	Phoneme   string  `json:"phoneme"`
-	Mastery   float64 `json:"mastery"`
-	Status    string  `json:"status"`
-	L1Tag     *string `json:"l1_tag,omitempty"`
+	Phoneme string  `json:"phoneme"`
+	Mastery float64 `json:"mastery"`
+	Status  string  `json:"status"`
+	L1Tag   *string `json:"l1_tag,omitempty"`
 }
 
 // PhonemeStatus is the mastery state for a phoneme.
@@ -114,22 +115,41 @@ func (s *CoachService) GetErrorProfile(ctx context.Context, userID uuid.UUID) (*
 		skillStatus = append(skillStatus, ss)
 	}
 
-	// Compute overall score as average of top phoneme masteries
-	var overallScore *float64
-	if len(phonemeStatus) > 0 {
-		sum := 0.0
-		for _, ps := range phonemeStatus {
-			sum += ps.Mastery
-		}
-		avg := sum / float64(len(phonemeStatus))
-		overallScore = &avg
+	// Điểm tổng tính trên TOÀN BỘ âm vị, bằng một truy vấn riêng.
+	//
+	// KHÔNG tính trung bình trên `phonemeStatus`: danh sách đó là `ORDER BY mastery ASC
+	// LIMIT 20`, tức 20 âm YẾU NHẤT, dựng ra để hiển thị. Tiếng Anh có ~44 âm vị nên dùng
+	// lại nó làm điểm tổng sẽ chặn trên điểm của người luyện rộng bằng chính cái đuôi yếu
+	// của họ. Đây cũng phải khớp với `overall_score` trong `mastery_snapshots`, nếu không
+	// biểu đồ tiến bộ sẽ mâu thuẫn với con số nằm ngay cạnh nó.
+	var overall *float64
+	if err := s.db.QueryRow(ctx,
+		`SELECT AVG(pm.mastery)
+		   FROM phoneme_mastery pm
+		   JOIN error_profiles ep ON pm.error_profile_id = ep.id
+		  WHERE ep.user_id = $1`,
+		userID).Scan(&overall); err != nil {
+		return nil, fmt.Errorf("tính điểm tổng: %w", err)
+	}
+	overallScore := overall
+
+	var minimalPairsProgress *float64
+	if err := s.db.QueryRow(ctx,
+		`SELECT AVG((pm.listen_mastery + pm.speak_mastery) / 2.0)
+		 FROM pair_mastery pm
+		 JOIN error_profiles ep ON pm.error_profile_id = ep.id
+		 WHERE ep.user_id = $1`,
+		userID,
+	).Scan(&minimalPairsProgress); err != nil {
+		return nil, fmt.Errorf("get minimal pairs progress: %w", err)
 	}
 
 	return &ErrorProfileDTO{
-		OverallScore:  overallScore,
-		TopErrors:     topErrors,
-		PhonemeStatus: phonemeStatus,
-		SkillStatus:   skillStatus,
+		OverallScore:         overallScore,
+		MinimalPairsProgress: minimalPairsProgress,
+		TopErrors:            topErrors,
+		PhonemeStatus:        phonemeStatus,
+		SkillStatus:          skillStatus,
 	}, nil
 }
 
@@ -192,6 +212,7 @@ func (s *CoachService) GetRecommendation(ctx context.Context, userID uuid.UUID) 
 			"type":       itemType,
 			"text":       text,
 			"difficulty": difficulty,
+			"phoneme":    phonemes[0],
 			"reason":     "weak_phoneme",
 		})
 	}

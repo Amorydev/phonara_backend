@@ -32,6 +32,10 @@ run-api:
 run-worker:
 	go run ./cmd/worker
 
+tts-generate:
+	@echo "→ Sinh audio mẫu cho câu chưa có (cần AZURE_TTS_KEY)..."
+	go run ./cmd/seed -tts
+
 seed:
 	go run ./cmd/seed
 

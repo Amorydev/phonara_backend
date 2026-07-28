@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/phonara/backend/internal/config"
+	"github.com/phonara/backend/internal/pkg/apperrors"
 )
 
 // ExamService handles exam sessions and Speechace scoring.
@@ -76,17 +78,33 @@ func (s *ExamService) Create(ctx context.Context, userID uuid.UUID, promptID str
 	}, nil
 }
 
-// Submit uploads audio_ref and enqueues async Speechace scoring.
+// Submit lưu bản ghi của bài thi. CHẤM ĐIỂM CHƯA CÓ.
+//
+// Vì sao pronunciation-engine KHÔNG chấm được bài thi: engine tính GOP bằng cách so âm
+// thanh với chuỗi âm vị CHUẨN suy từ `reference_text`. Bài thi là nói tự do theo đề
+// (`exam_prompts.prompt_text` + `speak_seconds`) — không có văn bản chuẩn nào để so. Đây
+// là giới hạn kiến trúc, không phải việc chưa làm xong: muốn chấm thì phải có ASR để chuyển
+// lời nói thành văn bản trước, hoặc dùng dịch vụ chấm thi bên ngoài.
+//
+// Trước đây hàm này đặt `status = 'scoring'` rồi trả về "scoring" trong khi KHÔNG có gì
+// chấm cả — bài thi treo mãi ở trạng thái đó và client poll vô hạn không bao giờ có kết
+// quả. Giữ `status = 'submitted'` và báo lỗi tường minh thì người dùng biết ngay.
+//
+// Audio VẪN được lưu: khi tính năng chấm có mặt, những bài đã nộp chấm lại được.
 func (s *ExamService) Submit(ctx context.Context, userID uuid.UUID, sessionID, audioRef string) (map[string]any, error) {
-	_, err := s.db.Exec(ctx,
-		`UPDATE exam_sessions SET audio_ref = $1, status = 'scoring'
-		 WHERE id = $2 AND user_id = $3`,
-		audioRef, sessionID, userID)
-	if err != nil {
-		return nil, fmt.Errorf("submit exam: %w", err)
+	if _, err := s.db.Exec(ctx,
+		`UPDATE exam_sessions SET audio_ref = $1
+		  WHERE id = $2 AND user_id = $3`,
+		audioRef, sessionID, userID,
+	); err != nil {
+		return nil, fmt.Errorf("lưu bản ghi bài thi: %w", err)
 	}
-	// TODO: enqueue asynq task TypeExamScoring
-	return map[string]any{"session_id": sessionID, "status": "scoring"}, nil
+
+	return nil, apperrors.New(
+		http.StatusServiceUnavailable,
+		"exam scoring is not available yet; your recording has been saved",
+		apperrors.ErrServiceUnavail,
+	)
 }
 
 // Report returns the scored exam report.

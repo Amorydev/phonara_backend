@@ -92,7 +92,14 @@ def run(
 
     pairs = align(canonical, decoded, sub_cost=sub_cost)
     verdicts = diagnose(
-        pairs, canonical, runs, gop_raw, log_probs, eng.blank_id, eng.merge_rules
+        pairs,
+        canonical,
+        canonical_ids,
+        runs,
+        gop_raw,
+        log_probs,
+        eng.blank_id,
+        eng.merge_rules,
     )
     t_diag = time.perf_counter() - t0
 

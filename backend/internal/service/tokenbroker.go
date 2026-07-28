@@ -31,9 +31,10 @@ type SpeechTokenResult struct {
 
 // TokenBrokerService manages the issuance of short-lived speech engine tokens.
 // Implements §3c defense layers:
-//   L1: short TTL tokens bound to session
-//   L2: rate-limit per user/IP via Redis
-//   L7: cost logging to analytics_events + Redis counter
+//
+//	L1: short TTL tokens bound to session
+//	L2: rate-limit per user/IP via Redis
+//	L7: cost logging to analytics_events + Redis counter
 type TokenBrokerService struct {
 	db  *pgxpool.Pool
 	rdb *goredis.Client
@@ -104,32 +105,20 @@ func (s *TokenBrokerService) IssueToken(ctx context.Context, in IssueTokenInput)
 }
 
 func (s *TokenBrokerService) issueAzureToken(ctx context.Context, in IssueTokenInput) (*SpeechTokenResult, error) {
-	// TODO: call Azure Cognitive Services token endpoint
-	// POST https://<region>.api.cognitive.microsoft.com/sts/v1.0/issueToken
-	// Authorization: Ocp-Apim-Subscription-Key: <key>
-	ttl := s.cfg.Azure.SpeechTokenTTL
-	if ttl == 0 {
-		ttl = 60 * time.Second
-	}
-	// Placeholder token — replace with actual Azure HTTP call
-	token := fmt.Sprintf("azure-token-%s-%s", in.UserID, in.SessionID)
-	return &SpeechTokenResult{
-		Token:     token,
-		Region:    s.cfg.Azure.SpeechRegion,
-		Engine:    "azure",
-		ExpiresAt: time.Now().Add(ttl),
-	}, nil
+	_ = ctx
+	_ = in
+	return nil, apperrors.New(
+		503, "azure speech token issuance is not configured", apperrors.ErrServiceUnavail,
+	)
 }
 
 func (s *TokenBrokerService) issueSpeechaceToken(_ context.Context, in IssueTokenInput) (*SpeechTokenResult, error) {
-	// Speechace uses a long-lived API key on the server; we return a scoped JWT for the session
-	// TODO: generate scoped JWT signed with Speechace credentials
-	return &SpeechTokenResult{
-		Token:     s.cfg.Azure.SpeechaceKey, // simplified — replace with scoped token
-		Region:    "",
-		Engine:    "speechace",
-		ExpiresAt: time.Now().Add(60 * time.Second),
-	}, nil
+	_ = in
+	// The provider credential must never cross the server boundary. Speechace
+	// integration must be server-to-server rather than returning its API key.
+	return nil, apperrors.New(
+		503, "speechace token issuance is not available", apperrors.ErrServiceUnavail,
+	)
 }
 
 func (s *TokenBrokerService) checkFreemiumQuota(ctx context.Context, userID uuid.UUID) error {

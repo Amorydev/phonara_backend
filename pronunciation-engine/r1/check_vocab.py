@@ -20,7 +20,7 @@ from collections import Counter
 
 from transformers import Wav2Vec2PhonemeCTCTokenizer
 
-from sentences import SEED_SENTENCES, VI_TARGET_PHONEMES
+from sentences import SEED_SENTENCES, TARGET_PHONEMES
 
 MODEL_ID = "facebook/wav2vec2-xlsr-53-espeak-cv-ft"
 # Pin theo commit SHA, không chỉ tên — §3.4. Đây là giá trị ghi vào model_version.
@@ -117,8 +117,8 @@ def main() -> int:
     # ── C. Âm mục tiêu người Việt ───────────────────────────────────────────────
     rule("C. Âm mục tiêu của người học Việt có trong vocab?")
 
-    missing_targets = [p for p in VI_TARGET_PHONEMES if p not in vocab]
-    for p in VI_TARGET_PHONEMES:
+    missing_targets = [p for p in TARGET_PHONEMES if p not in vocab]
+    for p in TARGET_PHONEMES:
         mark = OK if p in vocab else BAD
         seen = all_symbols.get(p, 0)
         note = f"xuất hiện {seen} lần trong 20 câu seed" if seen else "KHÔNG xuất hiện trong seed"
@@ -128,7 +128,7 @@ def main() -> int:
         print(f"\n{BAD} {len(missing_targets)} âm mục tiêu không có trong vocab: {missing_targets}")
         failures.append(f"{len(missing_targets)} âm mục tiêu OOV")
     else:
-        print(f"\n{OK} toàn bộ {len(VI_TARGET_PHONEMES)} âm mục tiêu đều có trong vocab")
+        print(f"\n{OK} toàn bộ {len(TARGET_PHONEMES)} âm mục tiêu đều có trong vocab")
 
     # §6.1 yêu cầu ≥30 lần xuất hiện cho mỗi âm mục tiêu. Mỗi người đọc CẢ 20 câu, nên
     # số lần thực tế = (số lần trong 1 lượt) × (số người). Chỉ âm có 0 lần là gap thật —
@@ -137,7 +137,7 @@ def main() -> int:
     FLOOR = 30
     print(f"\nPhủ âm cho benchmark §6.1 (ngưỡng ≥{FLOOR} lần, {SPEAKERS} người đọc cả 20 câu):")
     hard_gap, thin = [], []
-    for p in VI_TARGET_PHONEMES:
+    for p in TARGET_PHONEMES:
         per_pass = all_symbols.get(p, 0)
         total = per_pass * SPEAKERS
         if per_pass == 0:

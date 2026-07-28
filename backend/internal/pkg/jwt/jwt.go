@@ -10,6 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	tokenIssuer     = "phonara"
+	accessAudience  = "phonara-api"
+	refreshAudience = "phonara-refresh"
+)
+
 // Claims is the standard JWT payload for access tokens.
 type Claims struct {
 	UserID  uuid.UUID `json:"uid"`
@@ -51,6 +57,8 @@ func (m *Manager) SignAccess(userID uuid.UUID, isGuest bool) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.accessTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Subject:   userID.String(),
+			Issuer:    tokenIssuer,
+			Audience:  jwt.ClaimStrings{accessAudience},
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -70,6 +78,8 @@ func (m *Manager) SignRefresh(userID, sessionID uuid.UUID) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.refreshTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Subject:   userID.String(),
+			Issuer:    tokenIssuer,
+			Audience:  jwt.ClaimStrings{refreshAudience},
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -83,11 +93,15 @@ func (m *Manager) SignRefresh(userID, sessionID uuid.UUID) (string, error) {
 // ParseAccess validates and parses an access token string.
 func (m *Manager) ParseAccess(tokenStr string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		if t.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return m.accessSecret, nil
-	})
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(tokenIssuer),
+		jwt.WithAudience(accessAudience),
+	)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, fmt.Errorf("token expired: %w", err)
@@ -105,11 +119,15 @@ func (m *Manager) ParseAccess(tokenStr string) (*Claims, error) {
 // ParseRefresh validates and parses a refresh token string.
 func (m *Manager) ParseRefresh(tokenStr string) (*RefreshClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &RefreshClaims{}, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		if t.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return m.refreshSecret, nil
-	})
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(tokenIssuer),
+		jwt.WithAudience(refreshAudience),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("parse refresh token: %w", err)
 	}

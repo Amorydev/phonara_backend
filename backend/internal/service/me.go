@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/phonara/backend/internal/integration/storage"
 	"github.com/phonara/backend/internal/pkg/apperrors"
 )
 
@@ -62,12 +64,13 @@ type UpdateProfileInput struct {
 
 // MeService handles user profile business logic.
 type MeService struct {
-	db *pgxpool.Pool
+	db    *pgxpool.Pool
+	store storage.Store
 }
 
 // NewMeService creates a MeService.
-func NewMeService(db *pgxpool.Pool) *MeService {
-	return &MeService{db: db}
+func NewMeService(db *pgxpool.Pool, store storage.Store) *MeService {
+	return &MeService{db: db, store: store}
 }
 
 // GetProfile retrieves the user profile.
@@ -118,13 +121,22 @@ func (s *MeService) UpdateProfile(ctx context.Context, userID uuid.UUID, in Upda
 
 // DeleteAccount soft-deletes the user and enqueues async hard-delete of audio.
 func (s *MeService) DeleteAccount(ctx context.Context, userID uuid.UUID) error {
+	if err := s.store.DeletePrefix(ctx, recordingPrefix(userID)); err != nil {
+		return fmt.Errorf("delete account recordings: %w", err)
+	}
 	_, err := s.db.Exec(ctx,
-		`UPDATE users SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`,
+		`WITH deleted AS (
+		   UPDATE users SET deleted_at = now()
+		    WHERE id = $1 AND deleted_at IS NULL
+		    RETURNING id
+		 )
+		 UPDATE auth_sessions SET revoked_at = now()
+		  WHERE user_id IN (SELECT id FROM deleted)
+		    AND revoked_at IS NULL`,
 		userID)
 	if err != nil {
 		return fmt.Errorf("soft-delete account: %w", err)
 	}
-	// TODO: enqueue asynq task to hard-delete all audio_ref on S3
 	return nil
 }
 
@@ -165,10 +177,25 @@ func (s *MeService) GetNotifPrefs(ctx context.Context, userID uuid.UUID) (*Notif
 	return p, nil
 }
 
-// UpdateNotifPrefs updates notification preferences.
-func (s *MeService) UpdateNotifPrefs(ctx context.Context, userID uuid.UUID, req any) (*NotifPrefs, error) {
-	// TODO: parse req fields selectively using reflection or type assertion
-	// For now delegate back to GetNotifPrefs after no-op
+// UpdateNotifPrefs updates only the preferences present in the PATCH request.
+func (s *MeService) UpdateNotifPrefs(
+	ctx context.Context,
+	userID uuid.UUID,
+	practiceEnabled *bool,
+	practiceTime *string,
+	streakEnabled *bool,
+) (*NotifPrefs, error) {
+	_, err := s.db.Exec(ctx,
+		`UPDATE users SET
+		   notif_practice_reminder = COALESCE($2, notif_practice_reminder),
+		   reminder_time = COALESCE(NULLIF($3, '')::time, reminder_time),
+		   notif_streak_reminder = COALESCE($4, notif_streak_reminder)
+		 WHERE id = $1 AND deleted_at IS NULL`,
+		userID, practiceEnabled, practiceTime, streakEnabled,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update notification preferences: %w", err)
+	}
 	return s.GetNotifPrefs(ctx, userID)
 }
 
@@ -209,19 +236,30 @@ func (s *MeService) UpdatePrivacy(ctx context.Context, userID uuid.UUID, allowIm
 	if err != nil {
 		return nil, fmt.Errorf("update privacy: %w", err)
 	}
+	if saveHistory != nil && !*saveHistory {
+		if err := s.store.DeletePrefix(ctx, recordingPrefix(userID)); err != nil {
+			return nil, fmt.Errorf("delete recordings after consent withdrawal: %w", err)
+		}
+	}
 	return s.GetPrivacy(ctx, userID)
 }
 
 // EnqueueExport enqueues a GDPR data export task.
 func (s *MeService) EnqueueExport(ctx context.Context, userID uuid.UUID) error {
-	// TODO: enqueue asynq task TypeAccountExport
 	_ = ctx
 	_ = userID
-	return nil
+	return apperrors.New(
+		http.StatusNotImplemented,
+		"data export is not available yet",
+		apperrors.ErrServiceUnavail,
+	)
 }
 
 // DeletePracticeHistory deletes practice sessions/results/audio for a user (keeps account).
 func (s *MeService) DeletePracticeHistory(ctx context.Context, userID uuid.UUID) error {
+	if err := s.store.DeletePrefix(ctx, recordingPrefix(userID)); err != nil {
+		return fmt.Errorf("delete practice recordings: %w", err)
+	}
 	_, err := s.db.Exec(ctx,
 		`DELETE FROM practice_sessions WHERE user_id = $1`,
 		userID)
@@ -229,4 +267,8 @@ func (s *MeService) DeletePracticeHistory(ctx context.Context, userID uuid.UUID)
 		return fmt.Errorf("delete practice history: %w", err)
 	}
 	return nil
+}
+
+func recordingPrefix(userID uuid.UUID) string {
+	return storage.PrefixRecording + userID.String() + "/"
 }

@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/phonara/backend/internal/config"
 	"github.com/phonara/backend/internal/domain"
 	"github.com/phonara/backend/internal/pkg/apperrors"
 )
@@ -26,17 +26,20 @@ type CreateSessionInput struct {
 	Mode         string
 	Source       string
 	ScoringLevel string
+	TargetItems  *int
 }
 
 // SessionDTO is the public session representation.
 type SessionDTO struct {
-	ID           uuid.UUID  `json:"id"`
-	Mode         string     `json:"mode"`
-	ScoringLevel string     `json:"scoring_level"`
-	Source       *string    `json:"source,omitempty"`
-	StartedAt    time.Time  `json:"started_at"`
-	EndedAt      *time.Time `json:"ended_at,omitempty"`
-	SummaryScore *float64   `json:"summary_score,omitempty"`
+	ID             uuid.UUID  `json:"id"`
+	Mode           string     `json:"mode"`
+	ScoringLevel   string     `json:"scoring_level"`
+	Source         *string    `json:"source,omitempty"`
+	StartedAt      time.Time  `json:"started_at"`
+	EndedAt        *time.Time `json:"ended_at,omitempty"`
+	SummaryScore   *float64   `json:"summary_score,omitempty"`
+	CompletedItems int        `json:"completed_items"`
+	TotalItems     *int       `json:"total_items,omitempty"`
 }
 
 // IngestResultInput holds the raw PA data and metadata for ingestion.
@@ -63,14 +66,15 @@ type IngestResultOutput struct {
 
 // SessionService handles practice session business logic.
 type SessionService struct {
-	db  *pgxpool.Pool
-	rdb *goredis.Client
-	cfg *config.Config
+	db *pgxpool.Pool
+	// enqueue có thể nil: đường nội bộ (shadowing chấm điểm lại) không cần hàng đợi, và
+	// test dựng service không cần Redis. Mọi chỗ dùng phải kiểm nil.
+	enqueue *asynq.Client
 }
 
 // NewSessionService creates a SessionService.
-func NewSessionService(db *pgxpool.Pool, rdb *goredis.Client, cfg *config.Config) *SessionService {
-	return &SessionService{db: db, rdb: rdb, cfg: cfg}
+func NewSessionService(db *pgxpool.Pool, enqueue *asynq.Client) *SessionService {
+	return &SessionService{db: db, enqueue: enqueue}
 }
 
 // Create opens a new practice session after gating checks.
@@ -92,19 +96,22 @@ func (s *SessionService) Create(ctx context.Context, in CreateSessionInput) (*Se
 	}
 
 	_, err := s.db.Exec(ctx,
-		`INSERT INTO practice_sessions (id, user_id, mode, scoring_level, source, started_at)
-		 VALUES ($1, $2, $3, $4, $5, now())`,
-		sessionID, in.UserID, in.Mode, scoringLevel, source)
+		`INSERT INTO practice_sessions
+		   (id, user_id, mode, scoring_level, source, target_item_count, started_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, now())`,
+		sessionID, in.UserID, in.Mode, scoringLevel, source, in.TargetItems)
 	if err != nil {
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
 	return &SessionDTO{
-		ID:           sessionID,
-		Mode:         in.Mode,
-		ScoringLevel: scoringLevel,
-		Source:       source,
-		StartedAt:    time.Now(),
+		ID:             sessionID,
+		Mode:           in.Mode,
+		ScoringLevel:   scoringLevel,
+		Source:         source,
+		StartedAt:      time.Now(),
+		CompletedItems: 0,
+		TotalItems:     in.TargetItems,
 	}, nil
 }
 
@@ -112,11 +119,16 @@ func (s *SessionService) Create(ctx context.Context, in CreateSessionInput) (*Se
 func (s *SessionService) Get(ctx context.Context, userID uuid.UUID, sessionID string) (*SessionDTO, error) {
 	dto := &SessionDTO{}
 	err := s.db.QueryRow(ctx,
-		`SELECT id, mode, scoring_level, source, started_at, ended_at, summary_score
-		 FROM practice_sessions WHERE id = $1 AND user_id = $2`,
+		`SELECT ps.id, ps.mode, ps.scoring_level, ps.source, ps.started_at, ps.ended_at,
+		        ps.summary_score, ps.target_item_count, COUNT(pir.id)::int
+		 FROM practice_sessions ps
+		 LEFT JOIN practice_item_results pir ON pir.session_id = ps.id
+		 WHERE ps.id = $1 AND ps.user_id = $2
+		 GROUP BY ps.id`,
 		sessionID, userID).Scan(
 		&dto.ID, &dto.Mode, &dto.ScoringLevel, &dto.Source,
 		&dto.StartedAt, &dto.EndedAt, &dto.SummaryScore,
+		&dto.TotalItems, &dto.CompletedItems,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperrors.ErrNotFound
@@ -150,10 +162,13 @@ func (s *SessionService) End(ctx context.Context, userID uuid.UUID, sessionID st
 // History returns practice session history for a user.
 func (s *SessionService) History(ctx context.Context, userID uuid.UUID) ([]*SessionDTO, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT id, mode, scoring_level, source, started_at, ended_at, summary_score
-		 FROM practice_sessions
-		 WHERE user_id = $1
-		 ORDER BY started_at DESC
+		`SELECT ps.id, ps.mode, ps.scoring_level, ps.source, ps.started_at, ps.ended_at,
+		        ps.summary_score, ps.target_item_count, COUNT(pir.id)::int
+		 FROM practice_sessions ps
+		 LEFT JOIN practice_item_results pir ON pir.session_id = ps.id
+		 WHERE ps.user_id = $1
+		 GROUP BY ps.id
+		 ORDER BY ps.started_at DESC
 		 LIMIT 50`,
 		userID)
 	if err != nil {
@@ -165,7 +180,8 @@ func (s *SessionService) History(ctx context.Context, userID uuid.UUID) ([]*Sess
 	for rows.Next() {
 		dto := &SessionDTO{}
 		if err := rows.Scan(&dto.ID, &dto.Mode, &dto.ScoringLevel, &dto.Source,
-			&dto.StartedAt, &dto.EndedAt, &dto.SummaryScore); err != nil {
+			&dto.StartedAt, &dto.EndedAt, &dto.SummaryScore,
+			&dto.TotalItems, &dto.CompletedItems); err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
 		sessions = append(sessions, dto)
@@ -180,13 +196,17 @@ func (s *SessionService) History(ctx context.Context, userID uuid.UUID) ([]*Sess
 func (s *SessionService) InProgress(ctx context.Context, userID uuid.UUID) (*SessionDTO, error) {
 	dto := &SessionDTO{}
 	err := s.db.QueryRow(ctx,
-		`SELECT id, mode, scoring_level, source, started_at, ended_at, summary_score
-		 FROM practice_sessions
-		 WHERE user_id = $1 AND ended_at IS NULL
-		 ORDER BY started_at DESC LIMIT 1`,
+		`SELECT ps.id, ps.mode, ps.scoring_level, ps.source, ps.started_at, ps.ended_at,
+		        ps.summary_score, ps.target_item_count, COUNT(pir.id)::int
+		 FROM practice_sessions ps
+		 LEFT JOIN practice_item_results pir ON pir.session_id = ps.id
+		 WHERE ps.user_id = $1 AND ps.ended_at IS NULL
+		 GROUP BY ps.id
+		 ORDER BY ps.started_at DESC LIMIT 1`,
 		userID).Scan(
 		&dto.ID, &dto.Mode, &dto.ScoringLevel, &dto.Source,
 		&dto.StartedAt, &dto.EndedAt, &dto.SummaryScore,
+		&dto.TotalItems, &dto.CompletedItems,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil // no in-progress session is not an error
@@ -199,20 +219,9 @@ func (s *SessionService) InProgress(ctx context.Context, userID uuid.UUID) (*Ses
 
 // IngestResult processes a single PA result from the client.
 func (s *SessionService) IngestResult(ctx context.Context, in IngestResultInput) (*IngestResultOutput, error) {
-	// Idempotency check (Redis SET NX, 24h TTL)
-	idempKey := fmt.Sprintf("idem:result:%s", in.IdempotencyKey)
-	set, err := s.rdb.SetNX(ctx, idempKey, "1", 24*time.Hour).Result()
-	if err != nil {
-		return nil, fmt.Errorf("idempotency check: %w", err)
-	}
-	if !set {
-		// Already processed — return 200 silently (idempotent)
-		return &IngestResultOutput{TrustFlag: "ok"}, nil
-	}
-
 	// Verify session belongs to user
 	var sessionMode string
-	err = s.db.QueryRow(ctx,
+	err := s.db.QueryRow(ctx,
 		`SELECT mode FROM practice_sessions WHERE id = $1 AND user_id = $2`,
 		in.SessionID, in.UserID).Scan(&sessionMode)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -220,6 +229,12 @@ func (s *SessionService) IngestResult(ctx context.Context, in IngestResultInput)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find session: %w", err)
+	}
+
+	if existing, err := s.findIngestedResult(ctx, in.SessionID, in.IdempotencyKey); err != nil {
+		return nil, err
+	} else if existing != nil {
+		return existing, nil
 	}
 
 	// Recording-fail handling: if PA result indicates failure, don't score
@@ -257,26 +272,35 @@ func (s *SessionService) IngestResult(ctx context.Context, in IngestResultInput)
 
 	_, err = tx.Exec(ctx,
 		`INSERT INTO practice_item_results
-		   (id, session_id, content_item_id, minimal_pair_id, scoring_level,
+		   (id, session_id, content_item_id, minimal_pair_id, scoring_level, idempotency_key,
 		    accuracy, fluency, completeness, prosody, miscue, audio_ref, trust_flag)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 		itemResultID, in.SessionID, contentItemID, minimalPairID, in.ScoringLevel,
-		accuracy, fluency, completeness, prosody, string(miscueJSON),
+		in.IdempotencyKey, accuracy, fluency, completeness, prosody, string(miscueJSON),
 		nullIfEmpty(in.AudioRef), trustFlag,
 	)
 	if err != nil {
+		_ = tx.Rollback(ctx)
+		if existing, findErr := s.findIngestedResult(
+			ctx, in.SessionID, in.IdempotencyKey,
+		); findErr == nil && existing != nil {
+			return existing, nil
+		}
 		return nil, fmt.Errorf("insert item result: %w", err)
 	}
 
 	// Persist phoneme scores (always, regardless of Level — BR-LEVEL-05)
 	for _, ph := range in.PARaw.Phonemes {
-		isOmission := ph.Said == "" || ph.Accuracy < 10
+		diagnosis := diagnosisFromLegacyPA(ph)
 		_, err = tx.Exec(ctx,
 			`INSERT INTO phoneme_scores
-			   (item_result_id, expected_phoneme, said_phoneme, accuracy, word_index, phoneme_index, is_omission)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+			   (item_result_id, expected_phoneme, said_phoneme, accuracy, word_index,
+			    phoneme_index, is_omission, diagnosis)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 			itemResultID, ph.Expected, nullIfEmpty(ph.Said), ph.Accuracy,
-			ph.WordIndex, ph.PhonemeIndex, isOmission,
+			ph.WordIndex, ph.PhonemeIndex,
+			diagnosis == domain.DiagOmission, // is_omission: DEPRECATED, dẫn xuất
+			string(diagnosis),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("insert phoneme score: %w", err)
@@ -290,6 +314,15 @@ func (s *SessionService) IngestResult(ctx context.Context, in IngestResultInput)
 	// Enqueue async Error Profile recompute (fire-and-forget)
 	go s.enqueueErrorProfileRecompute(context.Background(), in.UserID)
 
+	// Tiến độ thử thách ngày cập nhật NGAY, không qua hàng đợi: người học vừa làm xong
+	// mục cuối sẽ quay lại màn hình thử thách trong vài giây, và thấy nó vẫn "chưa xong"
+	// là lỗi hiển nhiên. Một câu lệnh, đủ nhanh để chạy thẳng.
+	//
+	// Lỗi chỉ log — kết quả luyện đã lưu xong, không được để việc phụ này làm hỏng nó.
+	if err := NewDailyService(s.db).MarkDailyProgress(ctx, in.UserID); err != nil {
+		slog.Error("cập nhật tiến độ thử thách", "user_id", in.UserID, "err", err)
+	}
+
 	return &IngestResultOutput{
 		ItemResultID: itemResultID,
 		Accuracy:     accuracy,
@@ -298,6 +331,28 @@ func (s *SessionService) IngestResult(ctx context.Context, in IngestResultInput)
 		Prosody:      prosody,
 		TrustFlag:    trustFlag,
 	}, nil
+}
+
+func (s *SessionService) findIngestedResult(
+	ctx context.Context, sessionID, idempotencyKey string,
+) (*IngestResultOutput, error) {
+	var out IngestResultOutput
+	err := s.db.QueryRow(ctx,
+		`SELECT id, accuracy, completeness, fluency, prosody, trust_flag
+		   FROM practice_item_results
+		  WHERE session_id = $1 AND idempotency_key = $2`,
+		sessionID, idempotencyKey,
+	).Scan(
+		&out.ItemResultID, &out.Accuracy, &out.Completeness,
+		&out.Fluency, &out.Prosody, &out.TrustFlag,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find ingested result: %w", err)
+	}
+	return &out, nil
 }
 
 // IngestBatch processes multiple results (offline sync support — NFR-REL-03).
@@ -373,18 +428,55 @@ func (s *SessionService) sanityCheck(accuracy, _ *float64, pa domain.PARawPayloa
 	return "ok"
 }
 
+// diagnosisFromLegacyPA suy chẩn đoán từ payload Azure cũ.
+//
+// Trước đây code viết `isOmission := ph.Said == "" || ph.Accuracy < 10`, gộp ba tình
+// huống khác hẳn nhau làm một:
+//   - engine KHÔNG BIẾT user nói gì  → phải là uncertain
+//   - user thực sự nuốt âm            → omission
+//   - user nói sai âm nhưng điểm thấp → substitution
+//
+// Với engine self-host, Diagnosis được trả về tường minh và hàm này không dùng tới.
+// Nó chỉ phục vụ luồng Azure cũ trong giai đoạn chuyển tiếp, và cố tình THẬN TRỌNG:
+// khi không có bằng chứng thì trả uncertain, không đoán thành omission.
+func diagnosisFromLegacyPA(ph domain.PhonemeScore) domain.PhonemeDiagnosis {
+	if ph.Diagnosis != "" {
+		return ph.Diagnosis // engine mới đã nói rõ
+	}
+	switch {
+	case ph.ErrorType == string(domain.DiagOmission):
+		return domain.DiagOmission
+	case ph.Said == "":
+		// Không biết user nói gì. KHÔNG suy ra omission — đó chính là lỗi cũ.
+		return domain.DiagUncertain
+	case ph.Said != ph.Expected:
+		return domain.DiagSubstitution
+	default:
+		return domain.DiagCorrect
+	}
+}
+
 // buildMiscue constructs the miscue JSONB payload from PA raw data.
+//
+// Trước đây hàm này bỏ qua mọi từ không có ErrorType, tức là coi "engine không chẩn đoán
+// được" đồng nghĩa với "user phát âm đúng". Fix Guide vì thế mất sạch dữ liệu đầu vào ở
+// đúng những ca engine đang lưỡng lự. Nay giữ lại chúng với error_type = "uncertain".
 func (s *SessionService) buildMiscue(pa domain.PARawPayload) []map[string]any {
 	miscue := make([]map[string]any, 0, len(pa.WordScores))
 	for _, ws := range pa.WordScores {
-		if ws.ErrorType != "" && ws.ErrorType != "None" {
-			miscue = append(miscue, map[string]any{
-				"word":       ws.Word,
-				"error_type": ws.ErrorType,
-				"accuracy":   ws.Accuracy,
-				"word_index": ws.WordIndex,
-			})
+		errorType := ws.ErrorType
+		switch errorType {
+		case "None":
+			continue // engine khẳng định đúng — bỏ qua là chính xác
+		case "":
+			errorType = string(domain.DiagUncertain) // engine không kết luận được
 		}
+		miscue = append(miscue, map[string]any{
+			"word":       ws.Word,
+			"error_type": errorType,
+			"accuracy":   ws.Accuracy,
+			"word_index": ws.WordIndex,
+		})
 	}
 	return miscue
 }
@@ -396,10 +488,36 @@ func (s *SessionService) logAnalyticsEvent(ctx context.Context, userID uuid.UUID
 		userID, event, string(propsJSON))
 }
 
+// enqueueErrorProfileRecompute đẩy task tính lại hồ sơ lỗi.
+//
+// KHÔNG chặn luồng trả kết quả: người học vừa đọc xong cần thấy điểm ngay, còn hồ sơ lỗi
+// cập nhật chậm vài giây không ai nhận ra. Vì vậy lỗi ở đây chỉ log, không trả ngược.
+//
+// `asynq.Unique` gom một chuỗi kết quả liên tiếp thành MỘT lần tính. Một phiên luyện 20 câu
+// sẽ đẩy 20 task giống hệt nhau; thiếu dedup thì 19 lần tính đầu bị 20 lần sau ghi đè, tốn
+// CPU và I/O cho kết quả bị vứt đi. TTL nhỏ hơn nhịp đọc thực tế nên lần cuối luôn chạy.
 func (s *SessionService) enqueueErrorProfileRecompute(ctx context.Context, userID uuid.UUID) {
-	// TODO: enqueue asynq task TypeErrorProfileRecompute for userID
-	_ = ctx
-	_ = userID
+	if s.enqueue == nil {
+		return // đường không có worker (test, hoặc host chỉ chạy API)
+	}
+
+	payload, err := json.Marshal(ErrorProfilePayload{UserID: userID.String()})
+	if err != nil {
+		slog.Error("marshal payload error profile", "user_id", userID, "err", err)
+		return
+	}
+
+	task := asynq.NewTask(TypeErrorProfileRecompute, payload, asynq.Queue("default"))
+	if _, err := s.enqueue.EnqueueContext(ctx, task,
+		asynq.MaxRetry(3),
+		asynq.Timeout(errorProfileTimeout),
+		// Hoãn một nhịp để gom cả cụm kết quả của cùng một phiên vào một lần tính.
+		asynq.ProcessIn(errorProfileDebounce),
+		asynq.Unique(errorProfileDebounce+errorProfileTimeout),
+	); err != nil && !errors.Is(err, asynq.ErrDuplicateTask) {
+		// Trùng task là KẾT QUẢ MONG MUỐN của Unique, không phải sự cố — chỉ log cái khác.
+		slog.Error("đẩy task error profile", "user_id", userID, "err", err)
+	}
 }
 
 func nullIfEmpty(s string) *string {

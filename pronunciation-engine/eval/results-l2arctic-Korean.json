@@ -1,0 +1,64 @@
+{
+  "dataset": "l2arctic",
+  "license": "CC BY-NC 4.0 — measurement only, no fitted parameters",
+  "l1": "Korean",
+  "speakers": {
+    "HJK": 150,
+    "HKK": 150,
+    "YDCK": 150,
+    "YKWK": 150
+  },
+  "n_utterances": 600,
+  "n_phonemes": 19710,
+  "segmentation_ambiguity_rate": 0.015854779411764705,
+  "unsegmentable_chars": {},
+  "refine": "espeak",
+  "refined_symbols": 1368,
+  "error_detection_auc": 0.7717119740338073,
+  "truth_error_rate": 0.12942668696093354,
+  "diagnosis": {
+    "precision": 0.37472687545520755,
+    "recall": 0.40337122696981575,
+    "f1": 0.38852180479516707
+  },
+  "omission": {
+    "precision": 0.11982758620689656,
+    "recall": 0.3716577540106952,
+    "f1": 0.18122555410691005
+  },
+  "said_accuracy": 0.8157099697885196,
+  "said_n": 662,
+  "uncertain_rate": 0.12846270928462708,
+  "per_group": {
+    "affricate": {
+      "n": 276,
+      "auc": 0.6833419823559937,
+      "error_rate": 0.14855072463768115
+    },
+    "approximant": {
+      "n": 2274,
+      "auc": 0.8859974137344314,
+      "error_rate": 0.07695690413368514
+    },
+    "fricative": {
+      "n": 3832,
+      "auc": 0.7459559909719867,
+      "error_rate": 0.22520876826722339
+    },
+    "nasal": {
+      "n": 2064,
+      "auc": 0.8657397157153611,
+      "error_rate": 0.005329457364341085
+    },
+    "stop": {
+      "n": 3497,
+      "auc": 0.793936235194136,
+      "error_rate": 0.08035458964826994
+    },
+    "vowel": {
+      "n": 7767,
+      "auc": 0.7884363911453737,
+      "error_rate": 0.1519248100939874
+    }
+  }
+}

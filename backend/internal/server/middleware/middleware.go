@@ -3,12 +3,14 @@ package middleware
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/phonara/backend/internal/domain"
 	"github.com/phonara/backend/internal/pkg/apperrors"
@@ -88,7 +90,7 @@ func RequestLogger() echo.MiddlewareFunc {
 
 // JWT returns a middleware that validates the Authorization Bearer JWT and
 // populates context with user_id. Returns 401 on missing/invalid token.
-func JWT(jwtMgr *jwtutil.Manager) echo.MiddlewareFunc {
+func JWT(jwtMgr *jwtutil.Manager, db *pgxpool.Pool) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			tokenStr := extractBearerToken(c)
@@ -102,6 +104,23 @@ func JWT(jwtMgr *jwtutil.Manager) echo.MiddlewareFunc {
 					return apperrors.New(http.StatusUnauthorized, "token expired", apperrors.ErrUnauthorized)
 				}
 				return apperrors.New(http.StatusUnauthorized, "invalid token", apperrors.ErrUnauthorized)
+			}
+
+			var active bool
+			if err := db.QueryRow(c.Request().Context(),
+				`SELECT EXISTS (
+				   SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL
+				 )`,
+				claims.UserID,
+			).Scan(&active); err != nil {
+				return fmt.Errorf("check authenticated user: %w", err)
+			}
+			if !active {
+				return apperrors.New(
+					http.StatusUnauthorized,
+					"invalid token",
+					apperrors.ErrUnauthorized,
+				)
 			}
 
 			c.Set(ContextKeyUserID, claims.UserID)

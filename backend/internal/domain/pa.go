@@ -24,6 +24,13 @@ type PhonemeScore struct {
 	Accuracy     float64 `json:"accuracy"`
 	WordIndex    int     `json:"word_index"`
 	PhonemeIndex int     `json:"phoneme_index"`
+
+	// Diagnosis là chẩn đoán tường minh. Rỗng nghĩa là client không cung cấp — khi đó
+	// service suy ra một cách THẬN TRỌNG (xem diagnosisFromLegacyPA), không đoán bừa
+	// thành omission như code cũ.
+	Diagnosis PhonemeDiagnosis `json:"diagnosis,omitempty"`
+	// ErrorType tuỳ chọn ở mức âm vị, dùng khi client biết rõ loại lỗi.
+	ErrorType string `json:"error_type,omitempty"`
 }
 
 // trailingConsonants are phonemes commonly dropped by Vietnamese speakers at word end.

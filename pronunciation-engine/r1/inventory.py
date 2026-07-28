@@ -71,7 +71,7 @@ def main() -> int:
     print(f"inventory quan sát được : {len(seen)} ký hiệu")
     print(f"ngoài vocab model       : {oov or 'không có'}")
 
-    table_path = Path(__file__).resolve().parents[1] / "artifacts" / "confusion_vi.json"
+    table_path = Path(__file__).resolve().parents[1] / "artifacts" / "confusion.json"
     table = json.loads(table_path.read_text(encoding="utf-8"))
     general = {k for k in table["tier_general"] if not k.startswith("_")}
     grouped = {
@@ -94,9 +94,9 @@ def main() -> int:
     print(f"{'─' * 70}")
 
     if missing_conf or missing_group or oov:
-        print("\n✗ confusion_vi.json chưa phủ hết inventory thật")
+        print("\n✗ confusion.json chưa phủ hết inventory thật")
         return 1
-    print("\n✓ confusion_vi.json phủ toàn bộ inventory quan sát được")
+    print("\n✓ confusion.json phủ toàn bộ inventory quan sát được")
     return 0
 
 

@@ -1,10 +1,10 @@
 {
-  "version": "confusion-vi-1.0.0",
+  "version": "confusion-1.1.0",
   "_doc": [
     "Bảng nhầm lẫn phoneme cho GOP alignment-free (§3.2 bước 3).",
     "Hai tầng hợp nhất khi nạp (§3.1):",
     "  tier_general — khoảng cách đặc trưng ngữ âm, đảm bảo mọi phoneme có ứng viên",
-    "  tier_vi      — cặp lỗi đã biết của người học Việt, nơi kiến thức miền tạo khác biệt",
+    "  tier_l1      — cặp lỗi đã biết của người học Việt, nơi kiến thức miền tạo khác biệt",
     "RÀNG BUỘC (R9): giữ số ứng viên mỗi phoneme tương đối đồng đều. Chênh lệch lớn tạo",
     "sai lệch cấu trúc trong GOP — âm có nhiều đối thủ gần sẽ có GOP thấp hơn dù phát âm",
     "tốt ngang nhau. Đây là lý do calibration phải theo nhóm âm.",
@@ -76,7 +76,7 @@
     "əl": ["l", "ə", "ʊ", "oʊ"]
   },
 
-  "tier_vi": {
+  "tier_l1": {
     "_doc": "Lỗi chuyển di L1 tiếng Việt. Ứng viên ở đây được ưu tiên đưa lên đầu danh sách hợp nhất, nhưng tổng số vẫn cắt về target_candidates để giữ ràng buộc R9.",
     "θ": ["t", "s", "f"],
     "ð": ["d", "z"],

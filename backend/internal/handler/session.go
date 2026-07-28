@@ -3,11 +3,9 @@ package handler
 import (
 	"net/http"
 
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
-	goredis "github.com/redis/go-redis/v9"
-
-	"github.com/phonara/backend/internal/config"
 	"github.com/phonara/backend/internal/domain"
 	custmiddleware "github.com/phonara/backend/internal/server/middleware"
 	"github.com/phonara/backend/internal/service"
@@ -24,15 +22,16 @@ type SessionHandler struct {
 }
 
 // NewSessionHandler creates a SessionHandler.
-func NewSessionHandler(db *pgxpool.Pool, rdb *goredis.Client, cfg *config.Config) *SessionHandler {
-	return &SessionHandler{svc: service.NewSessionService(db, rdb, cfg)}
+func NewSessionHandler(db *pgxpool.Pool, enqueue *asynq.Client) *SessionHandler {
+	return &SessionHandler{svc: service.NewSessionService(db, enqueue)}
 }
 
 // createSessionRequest is the body for POST /v1/sessions.
 type createSessionRequest struct {
-	Mode         string `json:"mode" validate:"required,oneof=word sentence minimal_pair read_word shadowing exam"`
+	Mode         string `json:"mode" validate:"required,oneof=word sentence minimal_pair read_word shadowing exam conversation"`
 	Source       string `json:"source" validate:"omitempty,oneof=recommended free_choice daily onboarding"`
 	ScoringLevel string `json:"scoring_level" validate:"omitempty,oneof=easy medium hard"`
+	TargetItems  *int   `json:"target_items" validate:"omitempty,min=1,max=100"`
 }
 
 // Create godoc
@@ -60,6 +59,7 @@ func (h *SessionHandler) Create(c echo.Context) error {
 		Mode:         req.Mode,
 		Source:       req.Source,
 		ScoringLevel: req.ScoringLevel,
+		TargetItems:  req.TargetItems,
 	})
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/phonara/backend/internal/config"
 	"github.com/phonara/backend/internal/domain"
@@ -18,8 +19,10 @@ type SubscriptionHandler struct {
 }
 
 // NewSubscriptionHandler creates a SubscriptionHandler.
-func NewSubscriptionHandler(db *pgxpool.Pool, cfg *config.Config) *SubscriptionHandler {
-	return &SubscriptionHandler{svc: service.NewSubscriptionService(db, cfg)}
+func NewSubscriptionHandler(
+	db *pgxpool.Pool, rdb *goredis.Client, cfg *config.Config,
+) *SubscriptionHandler {
+	return &SubscriptionHandler{svc: service.NewSubscriptionService(db, rdb, cfg)}
 }
 
 // Get godoc

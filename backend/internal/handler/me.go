@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/phonara/backend/internal/domain"
+	"github.com/phonara/backend/internal/integration/storage"
 	custmiddleware "github.com/phonara/backend/internal/server/middleware"
 	"github.com/phonara/backend/internal/service"
 )
@@ -17,8 +18,8 @@ type MeHandler struct {
 }
 
 // NewMeHandler creates a MeHandler.
-func NewMeHandler(db *pgxpool.Pool) *MeHandler {
-	return &MeHandler{svc: service.NewMeService(db)}
+func NewMeHandler(db *pgxpool.Pool, store storage.Store) *MeHandler {
+	return &MeHandler{svc: service.NewMeService(db, store)}
 }
 
 // GetMe godoc
@@ -176,7 +177,20 @@ func (h *MeHandler) UpdateNotifications(c echo.Context) error {
 	if err := bindAndValidate(c, &req); err != nil {
 		return err
 	}
-	prefs, err := h.svc.UpdateNotifPrefs(ctxFromRequest(c), userID, req)
+	var practiceEnabled, streakEnabled *bool
+	var practiceTime *string
+	if req.PracticeReminder != nil {
+		practiceEnabled = &req.PracticeReminder.Enabled
+		if req.PracticeReminder.Time != "" {
+			practiceTime = &req.PracticeReminder.Time
+		}
+	}
+	if req.StreakReminder != nil {
+		streakEnabled = &req.StreakReminder.Enabled
+	}
+	prefs, err := h.svc.UpdateNotifPrefs(
+		ctxFromRequest(c), userID, practiceEnabled, practiceTime, streakEnabled,
+	)
 	if err != nil {
 		return err
 	}

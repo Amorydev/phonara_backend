@@ -5,7 +5,7 @@ import pytest
 
 from app.engine import calibrate
 
-ARTIFACT = Path(__file__).resolve().parents[1] / "artifacts" / "calibration_vi.json"
+ARTIFACT = Path(__file__).resolve().parents[1] / "artifacts" / "calibration.json"
 
 
 @pytest.fixture(scope="module")

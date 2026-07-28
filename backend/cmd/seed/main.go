@@ -2,25 +2,42 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/phonara/backend/internal/config"
 	storedb "github.com/phonara/backend/internal/store/db"
+	"github.com/phonara/backend/internal/worker"
 )
 
 func main() {
+	// -tts: chỉ đẩy task sinh audio mẫu, không seed lại dữ liệu.
+	ttsOnly := flag.Bool("tts", false, "đẩy task sinh audio mẫu rồi thoát")
+	force := flag.Bool("force", false, "sinh lại cả câu đã có audio (dùng khi đổi giọng)")
+	flag.Parse()
+
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("load config", "err", err)
 		os.Exit(1)
+	}
+
+	if *ttsOnly {
+		if err := enqueueTTS(cfg, *force); err != nil {
+			slog.Error("đẩy task tts", "err", err)
+			os.Exit(1)
+		}
+		slog.Info("đã đẩy task sinh audio mẫu — xem log worker để theo dõi")
+		return
 	}
 
 	ctx := context.Background()
@@ -49,7 +66,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: implement seed runners for l1_error_tags, minimal_pairs, fix_guides
+	// Thứ tự bắt buộc: fix_guides và minimal_pairs đều trỏ tới l1_error_tags qua khoá
+	// ngoại, và cả hai runner đều BÁO LỖI nếu nhãn chưa tồn tại thay vì để liên kết rỗng.
+	if err := seedL1ErrorTags(ctx, pool); err != nil {
+		slog.Error("seed l1 error tags", "err", err)
+		os.Exit(1)
+	}
+
+	if err := seedFixGuides(ctx, pool); err != nil {
+		slog.Error("seed fix guides", "err", err)
+		os.Exit(1)
+	}
+
+	if err := seedMinimalPairs(ctx, pool); err != nil {
+		slog.Error("seed minimal pairs", "err", err)
+		os.Exit(1)
+	}
+
+	if err := seedBadges(ctx, pool); err != nil {
+		slog.Error("seed badges", "err", err)
+		os.Exit(1)
+	}
+
+	if err := seedLegalDocuments(ctx, pool); err != nil {
+		slog.Error("seed legal documents", "err", err)
+		os.Exit(1)
+	}
+
+	if err := seedPlanConfigs(ctx, pool); err != nil {
+		slog.Error("seed plan configs", "err", err)
+		os.Exit(1)
+	}
+
 	slog.Info("seed complete")
 }
 
@@ -83,8 +131,14 @@ func ptrInt(v int) *int {
 func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 	const (
 		setCode    = "pre_assessment_default"
+		benchCode  = "benchmark_full"
 		setVersion = 1
-		audioBase  = "https://cdn.phonara.app/assessment/pre/"
+		// KHÔNG bịa URL audio. Trước đây seed gán sẵn cdn.phonara.app/qN.mp3 cho 7 câu
+		// đầu, nhưng CDN đó không tồn tại (trả 404) — client bấm "Nghe mẫu" phải chờ ~3,6
+		// giây một vòng mạng rồi mới biết là hỏng. URL chết tệ hơn URL trống.
+		//
+		// Audio mẫu do worker sinh: asynq task tts:batch quét câu có sample_audio_url rỗng,
+		// gọi Azure Neural TTS, lưu vào storage rồi ghi URL thật vào đây.
 	)
 
 	var setID uuid.UUID
@@ -105,14 +159,20 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 		return err
 	}
 
+	// Thứ tự câu trong bộ ONBOARDING. Chọn bằng phân tích phủ âm chứ không cảm tính:
+	// 4 câu {7,13,18,23} đủ cho mỗi âm khó (θ ð ʃ ʒ tʃ dʒ v z) xuất hiện ≥2 lần và phủ
+	// cả 13 âm mục tiêu. Thêm câu 1 và 2 ở đầu để có độ dốc 1→5 — mở màn bằng
+	// "thirty-three thirsty travelers thrived" sẽ làm người mới nản ngay câu đầu.
+	onboardingOrders := []int{1, 2, 13, 18, 23, 7}
+
 	questions := []assessmentQuestion{
-		{1, "The weather is nice today.", "/ðə ˈwɛðər ɪz naɪs təˈdeɪ/", audioBase + "q1.mp3", 4, 1},
-		{2, "I think this is great.", "/aɪ θɪŋk ðɪs ɪz ɡreɪt/", audioBase + "q2.mp3", 4, 2},
-		{3, "She sells seashells by the seashore.", "/ʃi sɛlz ˈsiˌʃɛlz baɪ ðə ˈsiˌʃɔr/", audioBase + "q3.mp3", 6, 3},
-		{4, "Could you please repeat that question?", "/kʊd ju pliz rɪˈpit ðæt ˈkwɛstʃən/", audioBase + "q4.mp3", 5, 2},
-		{5, "Our team launched the product last month.", "/aʊər tim lɔntʃt ðə ˈprɑdəkt læst mʌnθ/", audioBase + "q5.mp3", 6, 3},
-		{6, "Thank you very much for your help.", "/θæŋk ju ˈvɛri mʌtʃ fɔr jʊr hɛlp/", audioBase + "q6.mp3", 4, 2},
-		{7, "The thirty-three thirsty travelers thrived.", "/ðə ˈθɜrti θri ˈθɜrsti ˈtrævələrz θraɪvd/", audioBase + "q7.mp3", 7, 5},
+		{1, "The weather is nice today.", "/ðə ˈwɛðər ɪz naɪs təˈdeɪ/", "", 4, 1},
+		{2, "I think this is great.", "/aɪ θɪŋk ðɪs ɪz ɡreɪt/", "", 4, 2},
+		{3, "She sells seashells by the seashore.", "/ʃi sɛlz ˈsiˌʃɛlz baɪ ðə ˈsiˌʃɔr/", "", 6, 3},
+		{4, "Could you please repeat that question?", "/kʊd ju pliz rɪˈpit ðæt ˈkwɛstʃən/", "", 5, 2},
+		{5, "Our team launched the product last month.", "/aʊər tim lɔntʃt ðə ˈprɑdəkt læst mʌnθ/", "", 6, 3},
+		{6, "Thank you very much for your help.", "/θæŋk ju ˈvɛri mʌtʃ fɔr jʊr hɛlp/", "", 4, 2},
+		{7, "The thirty-three thirsty travelers thrived.", "/ðə ˈθɜrti θri ˈθɜrsti ˈtrævələrz θraɪvd/", "", 7, 5},
 		{8, "We really enjoy learning new languages.", "/wi ˈrɪəli ɪnˈdʒɔɪ ˈlɜrnɪŋ nu ˈlæŋɡwɪdʒɪz/", "", 5, 2},
 		{9, "Please leave the blue glass on the table.", "/pliz liv ðə blu ɡlæs ɑn ðə ˈteɪbəl/", "", 5, 2},
 		{10, "Victor wore a very warm vest.", "/ˈvɪktər wɔr ə ˈvɛri wɔrm vɛst/", "", 5, 3},
@@ -126,6 +186,16 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 		{18, "She watched six short videos yesterday.", "/ʃi wɑtʃt sɪks ʃɔrt ˈvɪdioʊz ˈjɛstərdeɪ/", "", 6, 4},
 		{19, "Would you like to order some fresh fruit?", "/wʊd ju laɪk tə ˈɔrdər sʌm frɛʃ frut/", "", 6, 4},
 		{20, "The world needs better communication.", "/ðə wɜrld nidz ˈbɛtər kəˌmjunəˈkeɪʃən/", "", 6, 4},
+
+		// Ba câu dưới thêm để phủ âm /ʒ/ — r1/inventory.py phát hiện 20 câu trên KHÔNG
+		// có câu nào chứa nó. Thêm người đọc không cứu được: 0 × N người vẫn là 0, nên
+		// tiêu chí "không lớp âm nào sai hệ thống" (§6.4) sẽ không đánh giá được /ʒ/.
+		//
+		// Mỗi câu chứa 2 lần /ʒ/ → 6 lần mỗi lượt đọc, tức 120 lần với 20 người, vượt
+		// sàn ≥30 của §6.1. Câu đã kiểm bằng chính tokenizer của model, không phỏng đoán.
+		{21, "Usually I measure my own progress.", "/ˈjuʒuəli aɪ ˈmɛʒər maɪ oʊn ˈprɑɡrɛs/", "", 6, 4},
+		{22, "The decision was a pleasure to make.", "/ðə dɪˈsɪʒən wʌz ə ˈplɛʒər tə meɪk/", "", 6, 4},
+		{23, "She has a clear vision for the garage.", "/ʃi hæz ə klɪr ˈvɪʒən fɔr ðə ɡəˈrɑʒ/", "", 6, 4},
 	}
 
 	for _, q := range questions {
@@ -136,7 +206,14 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 			 ON CONFLICT (set_id, order_index) DO UPDATE
 			   SET text = EXCLUDED.text,
 			       phonetic = EXCLUDED.phonetic,
-			       sample_audio_url = EXCLUDED.sample_audio_url,
+			       -- GIỮ audio đã sinh. Seed không biết gì về audio (nó luôn đưa vào
+			       -- NULL), nên ghi đè bằng EXCLUDED sẽ xoá sạch URL do worker tts:batch
+			       -- tạo — file vẫn nằm trong MinIO nhưng CSDL mất con trỏ, và lần chạy
+			       -- seed sau lại tốn tiền sinh lại toàn bộ.
+			       --
+			       -- Chỉ nhận giá trị mới khi seed thực sự có URL (trường hợp import
+			       -- audio thu sẵn từ nguồn ngoài).
+			       sample_audio_url = COALESCE(EXCLUDED.sample_audio_url, assessment_questions.sample_audio_url),
 			       expected_duration = EXCLUDED.expected_duration,
 			       difficulty = EXCLUDED.difficulty,
 			       is_active = TRUE`,
@@ -149,6 +226,70 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	slog.Info("seeded pre-assessment", "set_id", setID, "questions", len(questions))
+
+	// ── bộ benchmark: TẤT CẢ câu ──────────────────────────────────────────────
+	// Onboarding cần ngắn, benchmark cần phủ đủ. Một bộ không phục vụ được cả hai.
+	var benchID string
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO assessment_sets (code, type, title, description, locale, version, is_default)
+		 VALUES ($1, 'pre_assessment', $2, $3, 'en-US', $4, FALSE)
+		 ON CONFLICT (code, version) DO UPDATE SET title = EXCLUDED.title
+		 RETURNING id`,
+		benchCode, "Benchmark (đầy đủ)",
+		"Toàn bộ câu, dùng cho benchmark bước 7. KHÔNG phục vụ onboarding.",
+		setVersion,
+	).Scan(&benchID); err != nil {
+		return fmt.Errorf("seed benchmark set: %w", err)
+	}
+	for _, q := range questions {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO assessment_questions
+			   (set_id, order_index, text, phonetic, sample_audio_url, expected_duration, difficulty)
+			 VALUES ($1, $2, $3, $4, NULL, $5, $6)
+			 ON CONFLICT (set_id, order_index) DO UPDATE
+			   SET text = EXCLUDED.text, phonetic = EXCLUDED.phonetic,
+			       sample_audio_url = COALESCE(EXCLUDED.sample_audio_url, assessment_questions.sample_audio_url),
+			       expected_duration = EXCLUDED.expected_duration,
+			       difficulty = EXCLUDED.difficulty, is_active = TRUE`,
+			benchID, q.order, q.text, q.phonetic,
+			ptrInt(q.expectedDuration), ptrInt(q.difficulty),
+		); err != nil {
+			return fmt.Errorf("seed benchmark question %d: %w", q.order, err)
+		}
+	}
+	slog.Info("seeded benchmark set", "set_id", benchID, "questions", len(questions))
+
+	// Bộ onboarding: giữ các câu đã chọn và ĐÁNH SỐ LẠI theo thứ tự trong
+	// onboardingOrders. Giữ nguyên order_index gốc thì API trả về theo thứ tự số, tức
+	// độ khó thành 1,2,5,3,4,4 — câu líu lưỡi khó nhất nhảy lên thứ ba và làm người mới
+	// nản đúng lúc họ chưa quen. order_index CHÍNH LÀ thứ tự trình bày.
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM assessment_questions
+		  WHERE set_id = $1 AND NOT (order_index = ANY($2))`,
+		setID, onboardingOrders,
+	); err != nil {
+		return fmt.Errorf("xoá câu thừa khỏi bộ onboarding: %w", err)
+	}
+
+	// Đánh số lại hai pha: chỉ số đích có thể trùng chỉ số hiện có của hàng khác, và
+	// ràng buộc UNIQUE(set_id, order_index) sẽ chặn giữa chừng. Đẩy sang miền âm trước.
+	for i, order := range onboardingOrders {
+		if _, err := pool.Exec(ctx,
+			`UPDATE assessment_questions SET order_index = $3
+			  WHERE set_id = $1 AND order_index = $2`,
+			setID, order, -(i + 1),
+		); err != nil {
+			return fmt.Errorf("đánh số lại (pha 1) câu %d: %w", order, err)
+		}
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE assessment_questions SET order_index = -order_index
+		  WHERE set_id = $1 AND order_index < 0`,
+		setID,
+	); err != nil {
+		return fmt.Errorf("đánh số lại (pha 2): %w", err)
+	}
+	slog.Info("bộ onboarding thu gọn", "số_câu", len(onboardingOrders))
 	return nil
 }
 
@@ -167,13 +308,14 @@ type seedContentItem struct {
 // daily challenge bundles for yesterday/today/tomorrow (UTC) so the feature is
 // demonstrable across user timezones. Idempotent via deterministic UUIDs.
 func seedDailyChallenges(ctx context.Context, pool *pgxpool.Pool) error {
-	const audioBase = "https://cdn.phonara.app/content/"
+	// Không bịa URL — xem ghi chú ở seedPreAssessment. Worker tts:batch sẽ sinh và ghi
+	// URL thật cho cả content_items lẫn assessment_questions.
 
 	// 1. Content library (words + sentences) used as challenge items.
 	content := []seedContentItem{
-		{"word_comfortable", "word", "comfortable", "/ˈkʌmftəbəl/", audioBase + "comfortable.mp3", 3, []string{"ə"}},
-		{"sent_restaurant", "sentence", "Could you recommend a good restaurant?", "/kʊd ju ˌrɛkəˈmɛnd ə ɡʊd ˈrɛstrɒnt/", audioBase + "recommend_restaurant.mp3", 2, []string{"r"}},
-		{"sent_meeting", "sentence", "I'd like to schedule a meeting tomorrow.", "/aɪd laɪk tə ˈskɛdʒul ə ˈmitɪŋ təˈmɒroʊ/", audioBase + "schedule_meeting.mp3", 3, []string{"dʒ"}},
+		{"word_comfortable", "word", "comfortable", "/ˈkʌmftəbəl/", "", 3, []string{"ə"}},
+		{"sent_restaurant", "sentence", "Could you recommend a good restaurant?", "/kʊd ju ˌrɛkəˈmɛnd ə ɡʊd ˈrɛstrɒnt/", "", 2, []string{"r"}},
+		{"sent_meeting", "sentence", "I'd like to schedule a meeting tomorrow.", "/aɪd laɪk tə ˈskɛdʒul ə ˈmitɪŋ təˈmɒroʊ/", "", 3, []string{"dʒ"}},
 	}
 	contentID := make(map[string]uuid.UUID, len(content))
 	for _, c := range content {
@@ -204,9 +346,9 @@ func seedDailyChallenges(ctx context.Context, pool *pgxpool.Pool) error {
 		ipa   string
 		audio string
 	}{
-		{1, "Every morning I wake up at six.", "/ˈɛvri ˈmɔrnɪŋ aɪ weɪk ʌp æt sɪks/", audioBase + "morning1.mp3"},
-		{2, "I make a cup of coffee and read the news.", "/aɪ meɪk ə kʌp əv ˈkɔfi ænd rid ðə nuz/", audioBase + "morning2.mp3"},
-		{3, "Then I get ready and head to work.", "/ðɛn aɪ ɡɛt ˈrɛdi ænd hɛd tə wɜrk/", audioBase + "morning3.mp3"},
+		{1, "Every morning I wake up at six.", "/ˈɛvri ˈmɔrnɪŋ aɪ weɪk ʌp æt sɪks/", ""},
+		{2, "I make a cup of coffee and read the news.", "/aɪ meɪk ə kʌp əv ˈkɔfi ænd rid ðə nuz/", ""},
+		{3, "Then I get ready and head to work.", "/ðɛn aɪ ɡɛt ˈrɛdi ænd hɛd tə wɜrk/", ""},
 	}
 	_, err := pool.Exec(ctx,
 		`INSERT INTO shadowing_passages (id, title, source, topic, difficulty, sentence_count, is_active)
@@ -296,12 +438,12 @@ func seedPracticeModes(ctx context.Context, pool *pgxpool.Pool) error {
 		premium                           bool
 	}
 	modes := []mode{
-		{"word", "Phát âm từ", "Luyện phát âm từng từ", "ic_word", "/practice/word", false},
-		{"sentence", "Phát âm câu", "Luyện phát âm theo câu", "ic_sentence", "/practice/sentence", false},
-		{"minimal_pair", "Cặp âm dễ nhầm", "Phân biệt các âm gần giống", "ic_minimal_pair", "/minimal-pairs", false},
-		{"shadowing", "Shadowing", "Nói nhại theo đoạn mẫu", "ic_shadowing", "/shadowing", false},
-		{"flashcard", "Từ vựng (flashcard)", "Học từ vựng với thẻ ghi nhớ", "ic_flashcard", "/vocabulary", false},
-		{"profile", "Hồ sơ phát âm", "Xem điểm mạnh/yếu phát âm", "ic_profile", "/coach/profile", false},
+		{"word", "Phát âm từ", "", "ic_word", "/practice/word", false},
+		{"sentence", "Phát âm câu", "", "ic_sentence", "/practice/sentence", false},
+		{"minimal_pair", "Cặp âm dễ nhầm", "", "ic_minimal_pair", "/minimal-pairs", false},
+		{"shadowing", "Shadowing", "", "ic_shadowing", "/shadowing", false},
+		{"flashcard", "Từ vựng", "Ôn tập Flashcard", "ic_flashcard", "/vocabulary", false},
+		{"profile", "Hồ sơ phát âm", "", "ic_profile", "/coach/profile", false},
 	}
 
 	for i, m := range modes {
@@ -320,4 +462,24 @@ func seedPracticeModes(ctx context.Context, pool *pgxpool.Pool) error {
 
 	slog.Info("seeded practice modes", "count", len(modes))
 	return nil
+}
+
+// enqueueTTS đẩy task sinh audio mẫu vào hàng đợi.
+//
+// Đẩy task chứ không sinh trực tiếp ở đây: worker mới là nơi có provider TTS và storage,
+// và chạy qua hàng đợi thì lặp lại được, theo dõi được, không phụ thuộc terminal còn mở.
+func enqueueTTS(cfg *config.Config, force bool) error {
+	client := asynq.NewClient(asynq.RedisClientOpt{
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	defer client.Close()
+
+	task, err := worker.NewTTSBatchTask(0, force)
+	if err != nil {
+		return err
+	}
+	_, err = client.Enqueue(task)
+	return err
 }

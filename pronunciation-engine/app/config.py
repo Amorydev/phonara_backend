@@ -26,14 +26,16 @@ class Settings(BaseSettings):
     algorithm_version: str = "gop-af-1.0.0"
 
     # ── artifact ────────────────────────────────────────────────────────────────
-    confusion_path: Path = _ROOT / "artifacts" / "confusion_vi.json"
-    calibration_path: Path = _ROOT / "artifacts" / "calibration_vi.json"
-    merge_rules_path: Path = _ROOT / "artifacts" / "merge_rules_vi.json"
+    confusion_path: Path = _ROOT / "artifacts" / "confusion.json"
+    calibration_path: Path = _ROOT / "artifacts" / "calibration.json"
+    merge_rules_path: Path = _ROOT / "artifacts" / "merge_rules.json"
 
     # ── audio (§2.1 mã lỗi) ─────────────────────────────────────────────────────
     sample_rate: int = 16_000
     min_duration_ms: int = 300
     max_duration_ms: int = 30_000
+    max_audio_bytes: int = 2 * 1024 * 1024
+    max_reference_chars: int = 1_000
     silence_rms_threshold: float = 1e-4
 
     # ── serving (§3.4) ──────────────────────────────────────────────────────────

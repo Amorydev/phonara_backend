@@ -1,0 +1,200 @@
+# Chạy production trên VPS ĐÃ CÓ web server khác (nginx/Apache) giữ cổng 80/443.
+#
+#   docker compose -f docker-compose.behind-proxy.yml up -d
+#
+# Khác `docker-compose.prod.yml` đúng một điểm: KHÔNG có Caddy. Thay vào đó api gắn vào
+# 127.0.0.1:${API_BIND_PORT}, và web server sẵn có trên máy làm reverse proxy + TLS.
+#
+# Vì sao không dùng bản có Caddy: Caddy cần cổng 80 và 443. Máy đã có nginx giữ hai cổng đó
+# thì Caddy không khởi động được, hoặc tệ hơn là làm sập trang đang chạy.
+#
+# `127.0.0.1:` ở đầu port mapping là BẮT BUỘC, không phải trang trí: thiếu nó thì Docker
+# gắn vào 0.0.0.0 và api lộ thẳng ra internet, đi vòng qua nginx lẫn TLS.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?thiếu DB_NAME}
+      POSTGRES_USER: ${DB_USER:?thiếu DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?thiếu DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?thiếu REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?thiếu S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?thiếu S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  pronunciation-engine:
+    build:
+      context: ../pronunciation-engine
+    restart: unless-stopped
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    ports:
+      # CHỈ localhost. nginx trên máy gọi vào đây; internet thì không.
+      - "127.0.0.1:${API_BIND_PORT:-8090}:8080"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+      PRONUNCIATION_ENGINE_URL: http://pronunciation-engine:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      pronunciation-engine:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  seed:
+    build:
+      context: .
+      target: seed
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - seed
+    logging: *default-logging
+
+  migrate:
+    image: migrate/migrate:latest
+    volumes:
+      - ./migrations:/migrations
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable",
+        "up"
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+    logging: *default-logging
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

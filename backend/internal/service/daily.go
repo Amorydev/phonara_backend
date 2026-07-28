@@ -247,6 +247,89 @@ func (s *DailyService) resolveItems(ctx context.Context, challengeID string) ([]
 	return items, nil
 }
 
+// MarkDailyProgress cập nhật tiến độ thử thách hôm nay sau mỗi lượt luyện.
+//
+// Trước đây `daily_challenge_completions` KHÔNG có đường ghi nào: người học làm hết thử
+// thách vẫn thấy trạng thái "chưa làm" mãi mãi, và `History` luôn rỗng.
+//
+// Tính bằng MỘT câu lệnh: điều kiện "đã làm hết chưa" phụ thuộc dữ liệu đang nằm sẵn trong
+// CSDL, nên để Postgres so vừa ít vòng gọi vừa không có khe hở giữa lúc đọc và lúc ghi.
+//
+// Ngày lấy theo múi giờ NGƯỜI HỌC — cùng lý do với `mastery_snapshots`: người luyện lúc 2
+// giờ sáng sẽ bị tính nhầm vào thử thách hôm trước nếu dùng UTC.
+//
+// `completed_at` giữ nguyên lần đặt ĐẦU TIÊN qua COALESCE: làm thêm lượt sau khi đã xong
+// không được đẩy lùi mốc hoàn thành.
+func (s *DailyService) MarkDailyProgress(ctx context.Context, userID uuid.UUID) error {
+	const query = `
+WITH today AS (
+  SELECT dc.id AS challenge_id,
+         (now() AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC'))::date AS local_date
+    FROM users u
+    JOIN daily_challenges dc
+      ON dc.date = (now() AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC'))::date
+   WHERE u.id = $1
+),
+progress AS (
+  SELECT t.challenge_id,
+         count(*)           AS total,
+         count(item.score)  AS done,
+         avg(item.score)    AS score
+    FROM today t
+    JOIN daily_challenge_items dci ON dci.challenge_id = t.challenge_id
+    LEFT JOIN LATERAL (
+      -- Một mục thử thách là nội dung LẺ hoặc một BÀI ĐỌC — ràng buộc CHECK của bảng bảo
+      -- đảm đúng một trong hai được set. Hai loại có cách xác định "đã xong" khác nhau,
+      -- nên phải xử lý riêng: bỏ sót nhánh passage khiến thử thách nào có bài đọc cũng
+      -- KHÔNG BAO GIỜ hoàn thành được.
+      -- Mỗi nhánh phải BỌC NGOẶC: không có ngoặc thì ORDER BY/LIMIT gắn vào cả UNION chứ
+      -- không vào nhánh, và Postgres báo lỗi cú pháp ngay tại UNION.
+      (
+        SELECT r.accuracy AS score
+          FROM practice_item_results r
+          JOIN practice_sessions ps ON r.session_id = ps.id
+         WHERE dci.content_item_id IS NOT NULL
+           AND ps.user_id = $1
+           AND r.content_item_id = dci.content_item_id
+           AND r.trust_flag <> 'rejected'
+           AND r.created_at >= t.local_date - 1
+         -- Lượt GẦN NHẤT: một nội dung làm nhiều lần không được đếm thành nhiều mục xong.
+         ORDER BY r.created_at DESC
+         LIMIT 1
+      )
+      UNION ALL
+      -- Bài đọc tính là xong khi shadowing báo hoàn thành, KHÔNG phải khi đọc được một
+      -- câu — nếu không, đọc 1 trong 10 câu cũng được tính là xong cả mục.
+      (
+        SELECT sp.passage_avg_score AS score
+          FROM shadowing_progress sp
+         WHERE dci.passage_id IS NOT NULL
+           AND sp.user_id = $1
+           AND sp.passage_id = dci.passage_id
+           AND sp.completed
+         LIMIT 1
+      )
+    ) item ON TRUE
+   GROUP BY t.challenge_id
+)
+INSERT INTO daily_challenge_completions (user_id, challenge_id, status, score, completed_at)
+SELECT $1, challenge_id,
+       CASE WHEN done >= total AND total > 0 THEN 'completed' ELSE 'in_progress' END,
+       score,
+       CASE WHEN done >= total AND total > 0 THEN now() END
+  FROM progress
+ WHERE done > 0
+ON CONFLICT (user_id, challenge_id) DO UPDATE
+   SET status       = EXCLUDED.status,
+       score        = EXCLUDED.score,
+       completed_at = COALESCE(daily_challenge_completions.completed_at, EXCLUDED.completed_at)`
+
+	if _, err := s.db.Exec(ctx, query, userID); err != nil {
+		return fmt.Errorf("cập nhật tiến độ thử thách: %w", err)
+	}
+	return nil
+}
+
 // History returns the user's daily challenge history (most recent 30).
 func (s *DailyService) History(ctx context.Context, userID uuid.UUID) ([]*DailyHistoryItem, error) {
 	rows, err := s.db.Query(ctx,

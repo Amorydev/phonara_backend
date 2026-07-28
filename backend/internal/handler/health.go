@@ -4,6 +4,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -45,7 +46,8 @@ func Ready(db *pgxpool.Pool, rdb *goredis.Client) echo.HandlerFunc {
 
 		if err := db.Ping(ctx); err != nil {
 			resp["status"] = "degraded"
-			resp["db"] = fmt.Sprintf("unhealthy: %s", err.Error())
+			resp["db"] = "unhealthy"
+			slog.WarnContext(ctx, "readiness database check failed", "err", err)
 			code = http.StatusServiceUnavailable
 		} else {
 			resp["db"] = "ok"
@@ -53,7 +55,8 @@ func Ready(db *pgxpool.Pool, rdb *goredis.Client) echo.HandlerFunc {
 
 		if err := rdb.Ping(ctx).Err(); err != nil {
 			resp["status"] = "degraded"
-			resp["redis"] = fmt.Sprintf("unhealthy: %s", err.Error())
+			resp["redis"] = "unhealthy"
+			slog.WarnContext(ctx, "readiness redis check failed", "err", err)
 			code = http.StatusServiceUnavailable
 		} else {
 			resp["redis"] = "ok"

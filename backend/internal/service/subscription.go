@@ -7,16 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/phonara/backend/internal/config"
+	"github.com/phonara/backend/internal/pkg/apperrors"
 )
 
 // SubscriptionDTO is the subscription status DTO.
 type SubscriptionDTO struct {
-	Plan      string     `json:"plan"`
-	Status    string     `json:"status"`
-	RenewsAt  *time.Time `json:"renews_at,omitempty"`
-	Store     *string    `json:"store,omitempty"`
+	Plan     string     `json:"plan"`
+	Status   string     `json:"status"`
+	RenewsAt *time.Time `json:"renews_at,omitempty"`
+	Store    *string    `json:"store,omitempty"`
 }
 
 // QuotaDTO is the freemium quota DTO.
@@ -30,12 +32,15 @@ type QuotaDTO struct {
 // SubscriptionService handles IAP and subscription logic.
 type SubscriptionService struct {
 	db  *pgxpool.Pool
+	rdb *goredis.Client
 	cfg *config.Config
 }
 
 // NewSubscriptionService creates a SubscriptionService.
-func NewSubscriptionService(db *pgxpool.Pool, cfg *config.Config) *SubscriptionService {
-	return &SubscriptionService{db: db, cfg: cfg}
+func NewSubscriptionService(
+	db *pgxpool.Pool, rdb *goredis.Client, cfg *config.Config,
+) *SubscriptionService {
+	return &SubscriptionService{db: db, rdb: rdb, cfg: cfg}
 }
 
 // Get retrieves the user's current subscription.
@@ -70,13 +75,13 @@ func (s *SubscriptionService) Plans(ctx context.Context) ([]map[string]any, erro
 			return nil, fmt.Errorf("scan plan: %w", err)
 		}
 		plans = append(plans, map[string]any{
-			"plan":              plan,
-			"product_id_ios":    prodIOS,
+			"plan":               plan,
+			"product_id_ios":     prodIOS,
 			"product_id_android": prodAndroid,
-			"billing_period":    billing,
-			"price_vnd":         priceVND,
-			"display_name_vi":   displayName,
-			"features":          features,
+			"billing_period":     billing,
+			"price_vnd":          priceVND,
+			"display_name_vi":    displayName,
+			"features":           features,
 		})
 	}
 	return plans, nil
@@ -84,21 +89,13 @@ func (s *SubscriptionService) Plans(ctx context.Context) ([]map[string]any, erro
 
 // Verify verifies an IAP receipt and upgrades subscription.
 func (s *SubscriptionService) Verify(ctx context.Context, userID uuid.UUID, store, receipt string) (*SubscriptionDTO, error) {
-	// TODO: integrate with Apple/Google IAP verification APIs
-	// For now, simulate success
-	if receipt == "" {
-		return nil, fmt.Errorf("empty receipt")
-	}
-
-	_, err := s.db.Exec(ctx,
-		`UPDATE subscriptions SET plan = 'premium', status = 'active', store = $2, renews_at = $3
-		 WHERE user_id = $1`,
-		userID, store, time.Now().AddDate(0, 1, 0))
-	if err != nil {
-		return nil, fmt.Errorf("update subscription: %w", err)
-	}
-
-	return s.Get(ctx, userID)
+	_ = ctx
+	_ = userID
+	_ = store
+	_ = receipt
+	return nil, apperrors.New(
+		503, "purchase verification is temporarily unavailable", apperrors.ErrServiceUnavail,
+	)
 }
 
 // Restore restores a purchase by re-verifying entitlement from store.
@@ -108,14 +105,16 @@ func (s *SubscriptionService) Restore(ctx context.Context, userID uuid.UUID, sto
 
 // HandleAppleWebhook processes Apple server notifications (enqueued via asynq in production).
 func (s *SubscriptionService) HandleAppleWebhook(ctx context.Context, body map[string]any) error {
-	// TODO: parse notificationType and update subscription accordingly
-	return nil
+	_ = ctx
+	_ = body
+	return apperrors.New(503, "apple purchase notifications are not configured", apperrors.ErrServiceUnavail)
 }
 
 // HandleGoogleWebhook processes Google RTDN (Real-Time Developer Notifications).
 func (s *SubscriptionService) HandleGoogleWebhook(ctx context.Context, body map[string]any) error {
-	// TODO: parse message.data and update subscription accordingly
-	return nil
+	_ = ctx
+	_ = body
+	return apperrors.New(503, "google purchase notifications are not configured", apperrors.ErrServiceUnavail)
 }
 
 // GetQuota returns the freemium usage quota for today.
@@ -132,11 +131,12 @@ func (s *SubscriptionService) GetQuota(ctx context.Context, userID uuid.UUID) (*
 		}, nil
 	}
 
-	today := time.Now().UTC().Format("2006-01-02")
-	var used int
-	s.db.QueryRow(ctx,
-		`SELECT COALESCE(items_used, 0) FROM freemium_usage WHERE user_id = $1 AND date = $2`,
-		userID, today).Scan(&used)
+	used, err := s.rdb.Get(ctx, quotaKey(userID)).Int()
+	if err == goredis.Nil {
+		used = 0
+	} else if err != nil {
+		return nil, fmt.Errorf("get quota usage: %w", err)
+	}
 
 	limit := s.cfg.Freemium.DailyLimit
 	remaining := limit - used

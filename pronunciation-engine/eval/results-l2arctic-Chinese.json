@@ -1,0 +1,64 @@
+{
+  "dataset": "l2arctic",
+  "license": "CC BY-NC 4.0 — measurement only, no fitted parameters",
+  "l1": "Chinese",
+  "speakers": {
+    "BWC": 150,
+    "LXC": 150,
+    "NCC": 150,
+    "TXHC": 150
+  },
+  "n_utterances": 600,
+  "n_phonemes": 19796,
+  "segmentation_ambiguity_rate": 0.013159912096897838,
+  "unsegmentable_chars": {},
+  "refine": "espeak",
+  "refined_symbols": 1339,
+  "error_detection_auc": 0.7483857587374908,
+  "truth_error_rate": 0.18084461507375227,
+  "diagnosis": {
+    "precision": 0.4268893756845564,
+    "recall": 0.43547486033519556,
+    "f1": 0.43113938053097345
+  },
+  "omission": {
+    "precision": 0.18482039397450753,
+    "recall": 0.48333333333333334,
+    "f1": 0.2673931265716681
+  },
+  "said_accuracy": 0.7332521315468941,
+  "said_n": 821,
+  "uncertain_rate": 0.1455849666599313,
+  "per_group": {
+    "affricate": {
+      "n": 236,
+      "auc": 0.6350765306122449,
+      "error_rate": 0.1694915254237288
+    },
+    "approximant": {
+      "n": 2304,
+      "auc": 0.8530407082422761,
+      "error_rate": 0.1896701388888889
+    },
+    "fricative": {
+      "n": 3809,
+      "auc": 0.735791262428769,
+      "error_rate": 0.2840640588080861
+    },
+    "nasal": {
+      "n": 2072,
+      "auc": 0.8161548753618281,
+      "error_rate": 0.11148648648648649
+    },
+    "stop": {
+      "n": 3554,
+      "auc": 0.8112767863354902,
+      "error_rate": 0.10129431626336523
+    },
+    "vowel": {
+      "n": 7821,
+      "auc": 0.7393085009185776,
+      "error_rate": 0.1828410689170183
+    }
+  }
+}

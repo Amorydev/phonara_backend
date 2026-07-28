@@ -33,6 +33,8 @@ class MergeRules:
     tau_uncertain: float
     tau_gop_low: float
     tau_gop_high: float
+    # Ngưỡng "vắng mặt" cho quy tắc 5. Xem `_presence` và §3.2 bước 5.
+    tau_absent: float
 
 
 def greedy_decode(
@@ -97,9 +99,27 @@ def _blank_confidence(
     return float(log_probs[lo : hi + 1, blank_id].exp().mean())
 
 
+def _presence(log_probs: torch.Tensor, token_id: int, lo: int, hi: int) -> float:
+    """Posterior LỚN NHẤT của một phoneme trên vùng [lo, hi] — bằng chứng "có mặt".
+
+    Greedy decode là argmax cứng: nó chỉ giữ lại phoneme thắng ở mỗi frame và vứt bỏ toàn
+    bộ phân bố còn lại. Nhưng câu hỏi "người học có phát ra âm này không" cần đúng phần bị
+    vứt: một âm nói yếu vẫn để lại khối xác suất đáng kể dù không bao giờ thắng argmax.
+
+    Lấy `max` chứ không `mean`: một phoneme chỉ chiếm vài frame trong vùng được cấp, nên
+    trung bình sẽ bị pha loãng theo độ dài vùng — vùng càng rộng điểm càng thấp, tức đại
+    lượng sẽ phụ thuộc vào chuyện căn chuỗi thay vì vào âm thanh.
+    """
+    n_frames = log_probs.size(0)
+    lo = max(0, min(lo, n_frames - 1))
+    hi = max(lo, min(hi, n_frames - 1))
+    return float(log_probs[lo : hi + 1, token_id].exp().max())
+
+
 def diagnose(
     pairs: list[AlignedPair],
     canonical: list[str],
+    canonical_ids: list[int],
     runs: list[DecodedRun],
     gop: list[float],
     log_probs: torch.Tensor,
@@ -161,7 +181,38 @@ def diagnose(
             else:
                 out[i] = (PhonemeDiagnosis.SUBSTITUTION, run.symbol, conf)
 
-    return [o or (PhonemeDiagnosis.UNCERTAIN, None, 0.0) for o in out]
+    verdicts = [o or (PhonemeDiagnosis.UNCERTAIN, None, 0.0) for o in out]
+
+    # ── Quy tắc 5: `uncertain` + vắng mặt khỏi posterior → omission ──────────────
+    #
+    # Quy tắc 1 miễn trừ omission khỏi kiểm tra confidence, nhưng chỉ khi NW ĐÃ quyết định
+    # đó là omission. Khi NW căn được âm chuẩn vào một run yếu, confidence thấp đẩy nó
+    # thành `uncertain` — và người học nhận về "không rõ" thay vì "bạn nuốt mất âm này".
+    #
+    # Đo trên L2-ARCTIC (150 câu người Việt): trong 204 ca bỏ sót omission, **79 ca rơi
+    # đúng vào nhánh này** — nhóm lớn nhất. Confidence trung bình khi bỏ sót là 0,588 so
+    # với 0,942 khi bắt được.
+    #
+    # Quy tắc này mở rộng đúng nguyên tắc của quy tắc 1 chứ không phá nó: bằng chứng cho
+    # omission là sự VẮNG MẶT, và posterior là thước đo vắng mặt tốt hơn chuỗi greedy
+    # decode — vắng khỏi argmax chỉ nghĩa là thua một phoneme khác, còn vắng khỏi posterior
+    # nghĩa là model không thấy âm đó ở đâu cả.
+    #
+    # Chiều ngược lại (hạ omission có presence cao xuống uncertain) đã thử và BỎ: mọi
+    # ngưỡng đều làm cả precision lẫn recall tệ đi. Xem §3.2.1.
+    for i, (diagnosis, _said, _conf) in enumerate(verdicts):
+        if diagnosis is not PhonemeDiagnosis.UNCERTAIN:
+            continue
+        lo, hi = frame_of.get(i, (0, log_probs.size(0) - 1))
+        presence = _presence(log_probs, canonical_ids[i], lo, hi)
+        if presence < rules.tau_absent:
+            # confidence = khối xác suất KHÔNG nằm trên âm mong đợi. Cùng ngữ nghĩa "độ
+            # chắc chắn rằng âm này vắng mặt" với `_blank_confidence` ở nhánh trên, nhưng
+            # đo bằng chính phoneme thay vì bằng blank — ở đây vùng frame không im lặng,
+            # nó chứa một âm khác, nên blank sẽ báo thấp một cách sai lệch.
+            verdicts[i] = (PhonemeDiagnosis.OMISSION, None, 1.0 - presence)
+
+    return verdicts
 
 
 def collect_insertions(

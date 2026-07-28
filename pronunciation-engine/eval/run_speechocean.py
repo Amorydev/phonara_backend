@@ -2,7 +2,7 @@
 
 Hai mục tiêu tách bạch:
   1. ĐO chất lượng GOP: tương quan với điểm người chấm ở mức phoneme
-  2. FIT tham số calibration khởi điểm cho `calibration_vi.json`
+  2. FIT tham số calibration khởi điểm cho `calibration.json`
 
 Chuỗi chuẩn lấy TỪ DATASET (ARPAbet → IPA), không chạy G2P trên `text`. Người chấm cho
 điểm trên đúng chuỗi phone đó; chạy G2P riêng sẽ sinh chuỗi dài/ngắn khác và phá tương

@@ -184,9 +184,9 @@ pronunciation-engine/
 │       ├── calibrate.py   # GOP thô → điểm 0–100
 │       └── assess.py      # điều phối → NormalizedAssessmentResult
 ├── artifacts/
-│   ├── confusion_vi.json      # bảng nhầm lẫn, versioned  → algorithm_version
-│   ├── merge_rules_vi.json    # τ_uncertain, τ_gop_low/high → algorithm_version
-│   └── calibration_vi.json    # tham số calibration        → calibration_version
+│   ├── confusion.json      # bảng nhầm lẫn, versioned  → algorithm_version
+│   ├── merge_rules.json    # τ_uncertain, τ_gop_low/high → algorithm_version
+│   └── calibration.json    # tham số calibration        → calibration_version
 └── tests/
     ├── test_g2p.py
     ├── test_alignment.py      # Needleman-Wunsch thuần, không cần model
@@ -195,7 +195,7 @@ pronunciation-engine/
     └── test_golden.py         # audio cố định → kết quả kỳ vọng
 ```
 
-**Nguồn của `confusion_vi.json`.** Hai tầng, hợp nhất khi nạp:
+**Nguồn của `confusion.json`.** Hai tầng, hợp nhất khi nạp:
 
 1. **Tầng chung** — sinh từ khoảng cách đặc trưng ngữ âm (nơi/phương thức cấu âm, hữu
    thanh). Đảm bảo mọi phoneme đều có ứng viên.
@@ -275,8 +275,8 @@ omission, không phải bất định.
 Nhánh này **xử lý được insertion** — điều mà GOP alignment-free trong paper không làm.
 
 **Bước 5 — Hợp nhất.** Hai nhánh có thể mâu thuẫn. Hai tham số mới: `τ_gop_low`,
-`τ_gop_high`, sống trong `artifacts/merge_rules_vi.json` — **không** gộp vào
-`calibration_vi.json`, vì theo §8 tham số của quy tắc hợp nhất thuộc `algorithm_version`
+`τ_gop_high`, sống trong `artifacts/merge_rules.json` — **không** gộp vào
+`calibration.json`, vì theo §8 tham số của quy tắc hợp nhất thuộc `algorithm_version`
 chứ không phải `calibration_version`; gộp chung file sẽ lẫn ngữ nghĩa hai trục version.
 Tinh chỉnh cùng đợt với `τ_uncertain`, trên cùng bộ dữ liệu gán nhãn giai đoạn 4.
 
@@ -290,11 +290,55 @@ Tinh chỉnh cùng đợt với `τ_uncertain`, trên cùng bộ dữ liệu gá
    nhưng méo).
 4. Align nói `substitution` nhưng `GOPᵢ > τ_gop_high` → hạ xuống `uncertain` (nhiều khả
    năng lỗi decode).
+5. **`uncertain` + âm chuẩn vắng mặt khỏi posterior → `omission`.** Nếu một phoneme đã bị
+   quy tắc 2 hoặc 4 đẩy thành `uncertain`, đo `presence` = posterior **lớn nhất** của
+   chính âm đó trong vùng frame của nó. `presence < τ_absent` → `omission`, với
+   `confidence = 1 − presence`.
 
 Quy tắc 1 tồn tại vì omission thật thường rơi vào vùng frame mà posterior dồn vào blank
 thay vì bất kỳ phone nào. Không loại trừ, cơ chế hợp nhất sẽ **hệ thống hoá** việc biến
 omission thật thành `uncertain` — làm yếu đúng thứ mà nhánh alignment được thiết kế để
 phát hiện.
+
+Quy tắc 5 vá đúng chỗ rò còn lại của quy tắc 1: quy tắc 1 chỉ bảo vệ omission mà **NW đã
+quyết định**. Khi NW căn được âm chuẩn vào một run yếu, confidence thấp vẫn đẩy nó thành
+`uncertain`, và người học nhận về "không rõ" thay vì "bạn nuốt mất âm này".
+
+Đo trên L2-ARCTIC (§6.1.1): trong 204 ca bỏ sót omission, **79 ca rơi đúng vào nhánh
+này** — nhóm lớn nhất. Confidence trung bình khi bỏ sót là 0,588 so với 0,942 khi bắt
+được, tức chúng nằm ngay dưới `τ_uncertain`.
+
+Nó **mở rộng** nguyên tắc của quy tắc 1 chứ không phá: bằng chứng cho omission là sự vắng
+mặt, và posterior là thước đo vắng mặt tốt hơn chuỗi greedy decode. Greedy decode là argmax
+cứng — vắng khỏi nó chỉ nghĩa là **thua** một phoneme khác; vắng khỏi posterior nghĩa là
+model **không thấy** âm đó ở đâu cả.
+
+`presence` lấy `max` chứ không `mean`: một phoneme chỉ chiếm vài frame trong vùng được cấp,
+nên trung bình sẽ pha loãng theo độ dài vùng — đại lượng khi đó phụ thuộc vào chuyện căn
+chuỗi thay vì vào âm thanh.
+
+### 3.2.1 Chiều ngược lại — đã thử và BỎ
+
+Cùng đại lượng `presence`, quy tắc đối xứng: *omission do NW quyết định nhưng `presence`
+cao → hạ xuống `uncertain`*, nhằm cứu precision.
+
+**Không hoạt động.** Mọi ngưỡng đều làm cả precision lẫn recall tệ đi:
+
+| τ_present | om precision | om recall | om F1 |
+|---|---|---|---|
+| không áp dụng | 0,373 | 0,617 | **0,465** |
+| 0,40 | 0,372 | 0,604 | 0,461 |
+| 0,25 | 0,375 | 0,581 | 0,456 |
+| 0,15 | 0,381 | 0,565 | 0,455 |
+
+Lý do đọc được từ số liệu: ca **báo nhầm** omission có `presence` trung bình 0,059 — gần
+bằng ca **bắt đúng** (0,037), và cách rất xa phần còn lại (0,626). Nghĩa là khi engine báo
+nhầm omission, model **thật sự không thấy** âm đó; posterior đồng tình với kết luận sai.
+Đây là giới hạn âm học của model, không phải lỗi của luật hợp nhất — nên không có luật nào
+sửa được.
+
+Ghi lại vì cùng loại với §3.6.4: lever trông hợp lý, đo ra vô hiệu. Đừng thử lại mà không
+có model mới.
 
 **Bước 6 — Tổng hợp.**
 
@@ -356,7 +400,7 @@ GOP thô là hiệu hai log-likelihood, miền giá trị **toàn trục số th
 `(−∞, 0]` và không phải điểm 0–100. Dấu là tín hiệu chính (dương = tốt hơn mọi phương án
 nhiễu đã thử); độ lớn phản ánh biên độ chênh lệch. Ánh xạ sang thang điểm là bài toán riêng.
 
-- v1: logistic có tham số, nạp từ `artifacts/calibration_vi.json`, nhận đầu vào trên toàn
+- v1: logistic có tham số, nạp từ `artifacts/calibration.json`, nhận đầu vào trên toàn
   trục thực, **không clip**
 - **Calibration theo nhóm âm** (vowel / stop / fricative / affricate / nasal / approximant),
   không phải một logistic toàn cục — lý do ở dưới
@@ -688,6 +732,108 @@ dùng được.
 `/ʒ/` vắng mặt hoàn toàn. Cần thêm ≥2 câu chứa nó vào `assessment_questions` trước giai
 đoạn 4 — ví dụ *measure*, *vision*, *usually*, *decision*, *television*.
 
+### 6.1.0 Engine KHÔNG phụ thuộc tiếng mẹ đẻ — ĐÃ ĐO (2026-07-28)
+
+App có giao diện tiếng Việt nên phần lớn người dùng là người Việt, **nhưng không phải tất
+cả**. Quyết định kiến trúc: engine **không nhận tiếng mẹ đẻ làm đầu vào**, không có artifact
+tách theo L1, và `users` **không có** cột `native_language`. Nội dung (Fix Guide, minimal
+pairs) chọn theo **lỗi đo được của từng người**, không theo L1 khai báo —
+`ContentService.GetFixGuide` vốn đã lọc theo `phoneme`, nên không phải sửa gì.
+
+**Cơ chế "lỗi đo được" đã có** (2026-07-28): `internal/service/errorprofile.go` tính
+`phoneme_mastery`, `skill_mastery` và `top_errors` bằng trung bình có trọng số giảm dần
+theo thời gian. Trước đó ba bảng này **không có đường ghi nào** — Coach trả mảng rỗng vĩnh
+viễn, nên quyết định ở trên không có gì để bám vào. Chi tiết ở `backend/ERROR_PROFILE.md`.
+
+Ba quy tắc quy điểm bám sát engine để Coach và màn hình kết quả không lệch nhau:
+`omission` → 0 (nuốt âm là câu trả lời cho "phát âm âm này tốt đến đâu"), `insertion` →
+bỏ (không quy được cho âm vị chuẩn nào), `uncertain` → **tính bằng accuracy của nó** (bất
+định nằm ở nhãn, không ở điểm — cùng quy tắc với `aggregate.mean_accuracy`).
+
+Quyết định thì phải đo. L2-ARCTIC có 6 tiếng mẹ đẻ × 600 câu; chạy cùng một engine, cùng
+một bộ artifact (`eval/compare_l1.py`):
+
+| Tiếng mẹ đẻ | Âm vị | AUC | Lỗi thật | P | R | recall om | `uncertain` |
+|---|---|---|---|---|---|---|---|
+| Việt | 20.152 | **0,8314** | 25,9% | 0,637 | 0,577 | 0,611 | 14,7% |
+| Ả Rập | 19.724 | 0,8012 | 11,1% | 0,317 | 0,513 | 0,353 | 15,1% |
+| Hindi | 19.763 | 0,7771 | 13,8% | 0,329 | 0,481 | 0,361 | 16,9% |
+| Hàn | 19.710 | 0,7717 | 12,9% | 0,375 | 0,403 | 0,372 | 12,8% |
+| Tây Ban Nha | 20.067 | 0,7572 | 18,3% | 0,414 | 0,402 | 0,416 | 15,3% |
+| Quan Thoại | 19.796 | 0,7484 | 18,1% | 0,427 | 0,435 | 0,483 | 14,6% |
+
+**Không thứ tiếng nào sụp đổ.** Chênh lệch AUC 0,083; thấp nhất (0,7484) vẫn ngang mốc
+speechocean762 (0,747). Giả định "một cấu hình dùng chung cho mọi người học" **đứng vững**.
+
+**Precision chênh 2× — nhưng KHÔNG phải thiên vị.** `corr(tỷ lệ lỗi nền, precision) =
++0,965`, gần như hoàn hảo: với ngưỡng cố định, tỷ lệ lỗi nền càng thấp thì cùng một số lần
+báo động sinh ra càng nhiều báo nhầm. Đó là số học. Đối chứng: `corr(tỷ lệ lỗi, AUC) =
++0,386` — yếu, tức AUC đo chất lượng xếp hạng thật chứ không chỉ phản chiếu độ khó.
+
+Hệ quả sản phẩm, **không liên quan tiếng mẹ đẻ**: người học **ít lỗi** thấy nhiều báo động
+sai hơn. Đó là chuyện **trình độ**. Cần gạt đúng là **ngưỡng thích ứng theo lịch sử từng
+người** — trung lập với L1 theo cấu tạo, và xử lý luôn cả trục trình độ. Việc cho v2.
+
+**Hai điểm yếu có cấu trúc, theo dõi chứ chưa chặn:**
+
+| Nhóm âm | Chênh giữa các L1 | Tệ nhất |
+|---|---|---|
+| stop | 0,228 | Hindi 0,646 — tiếng Hindi có đối lập 4 chiều (hữu/vô thanh × bật hơi/không) mà tiếng Anh không có |
+| affricate | 0,183 | Tây Ban Nha 0,577 |
+
+Không nhóm nào dưới 0,5 (dưới 0,5 mới là xếp hạng **ngược**). Chạy lại `compare_l1.py` mỗi
+lần đổi model hoặc đổi artifact — script thoát khác 0 khi chênh lệch vượt ngưỡng, dùng được
+trong CI.
+
+⚠️ **Đừng nhân bản bảng nhầm lẫn theo từng thứ tiếng.** `tier_l1` (trước là `tier_vi`) chỉ
+đổi **2/232 ứng viên cuối cùng — 0,9%**; cộng với §3.6.4, bảng nhầm lẫn **không phải** cần
+gạt đặc thù hoá theo L1. Nếu một thứ tiếng thật sự tụt, lever là **đổi model** (§10.1).
+
+### 6.1.1 Tiền sàng lọc trên L2-ARCTIC — ĐÃ CHẠY (2026-07-28)
+
+Trước khi bỏ ~20 người đọc và 2 người × ~4.000 âm vị chấm tay, chạy trên dữ liệu đã có
+nhãn sẵn: **600 câu của 4 người Việt, 20.152 âm vị**. Công cụ:
+`pronunciation-engine/eval/l2arctic.py`, chi tiết ở `eval/README-l2arctic.md`.
+
+| | speechocean762 | L2-ARCTIC Trung | **L2-ARCTIC Việt** |
+|---|---|---|---|
+| AUC phát hiện lỗi | 0,747 | 0,7484 | **0,8314** |
+| Tỷ lệ lỗi thật | ~15% | 18,1% | 25,9% |
+| precision / recall | — | 0,428 / 0,378 | 0,637 / 0,577 |
+| recall omission | — | 0,364 | 0,611 |
+
+**Kết luận 1 — bộ đo tái lập được.** Cột Trung cho 0,7484 so với 0,747 của
+speechocean762, dù khác dataset, khác người gán và khác hẳn cách suy nhãn (căn hai chuỗi
+phiên âm thay vì đọc điểm 0/1/2 có sẵn). Trùng đến chữ số thứ ba là bằng chứng độc lập
+rằng cách suy nhãn ở đây không sai.
+
+**Kết luận 2 — không có sụt giảm trên giọng người Việt.** Đây là rủi ro lớn nhất của cả
+hướng đi: model đa ngữ có thể chỉ chạy được trên các L1 phổ biến trong dữ liệu huấn luyện.
+AUC người Việt cao hơn ở **mọi** nhóm âm. Do đó **lever "đổi model" (§10.1) chưa cần dùng**.
+
+⚠️ Không đọc thành "engine tốt hơn với người Việt": người Việt trong bộ này mắc lỗi nhiều
+và nặng hơn (nuốt âm 7,7% vs 3,3%), mà lỗi thô thì dễ tách hơn.
+
+**Ba điểm yếu cần xử lý ở §6.4:**
+
+1. ~~**recall omission 0,513**~~ — **ĐÃ XỬ LÝ.** Quy tắc 5 (§3.2 bước 5) nâng lên **0,611**,
+   kéo theo recall lỗi tổng thể 0,496 → 0,577 và precision 0,630 → 0,637. Đánh đổi:
+   precision riêng nhãn omission 0,426 → 0,381.
+2. **nguyên âm: 33,5% trả `uncertain`** — vẫn gấp rưỡi trần 20% mà §6.4 đặt cho toàn bộ
+   (quy tắc 5 đã kéo từ 36,7% xuống). Còn lại là bài toán của giai đoạn 4.
+3. **âm tắc-xát: AUC 0,757, tỷ lệ lỗi 42,4%** — nhóm yếu nhất (n=276, mẫu nhỏ; bổ sung câu
+   chứa `tʃ dʒ` cùng lúc với việc bổ sung `/ʒ/` ở §6.1).
+
+**Cái này KHÔNG thay thế được §6.2–6.4.** Bốn giới hạn không sửa được bằng code: 4 người
+(không phủ vùng miền), câu CMU ARCTIC (không phải `assessment_questions`), **một người gán
+mỗi câu** (không tính được đồng thuận, nên cổng chặn kappa ≥ 0,60 không áp dụng được), và
+nhãn nhị phân (không đo được engine phân biệt "sai hẳn" với "có accent"). Nó **loại trừ**
+được engine, không **chứng nhận** được engine.
+
+⚠️ **L2-ARCTIC là CC BY-NC 4.0.** Đo được; **không** fit tham số calibration ship kèm sản
+phẩm (tham số fit trên dữ liệu NC là sản phẩm phái sinh của dữ liệu NC). Vì vậy
+`l2arctic.py` cố ý **không có** `--emit-calibration`, khác `run_speechocean.py`.
+
 ### 6.2 Gán nhãn
 
 - **Ít nhất 2 người chấm độc lập**, mức phoneme (đúng/sai) và mức từ
@@ -749,8 +895,8 @@ xóa `/v1/speech/token`.
 |---|---|---|
 | `model_version` | đổi checkpoint HuggingFace | — (pin commit SHA) |
 | `g2p_version` | đổi phiên bản `espeak-ng` / `phonemizer` | — (pin trong Dockerfile) |
-| `algorithm_version` | đổi công thức GOP, bảng nhầm lẫn, quy tắc hợp nhất | `confusion_vi.json`, `merge_rules_vi.json` |
-| `calibration_version` | đổi tham số ánh xạ điểm | `calibration_vi.json` |
+| `algorithm_version` | đổi công thức GOP, bảng nhầm lẫn, quy tắc hợp nhất | `confusion.json`, `merge_rules.json` |
+| `calibration_version` | đổi tham số ánh xạ điểm | `calibration.json` |
 
 Cả bốn lưu cùng mỗi bản ghi. Biểu đồ tiến bộ của user **phải lọc theo bộ bốn này** hoặc
 tính lại từ `gop_raw` — nếu không, một lần đổi calibration sẽ tạo ra bước nhảy giả trong đồ

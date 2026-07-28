@@ -47,6 +47,22 @@ services:
       timeout: 5s
       retries: 5
 
+  pronunciation-engine:
+    build:
+      context: ../pronunciation-engine
+    restart: unless-stopped
+    # KHÔNG publish port ra host: engine không có auth, Go backend là biên giới
+    # tin cậy duy nhất. Chỉ mạng nội bộ compose truy cập được.
+    expose:
+      - "8000"
+    healthcheck:
+      # /health chỉ trả 200 khi model đã nạp VÀ warm-up xong
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
   api:
     build:
       context: .
@@ -60,6 +76,7 @@ services:
       DB_HOST: postgres
       REDIS_ADDR: redis:6379
       S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,10 +101,18 @@ services:
       DB_HOST: postgres
       REDIS_ADDR: redis:6379
       S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+      PRONUNCIATION_ENGINE_URL: http://pronunciation-engine:8000
+    # Không còn cần volume chung: S3Store cho api và worker dùng cùng MinIO, nên
+    # chạy trên hai máy khác nhau vẫn đọc được của nhau.
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      pronunciation-engine:
         condition: service_healthy
 
   migrate:
@@ -110,3 +135,4 @@ volumes:
   pgdata:
   redisdata:
   miniodata:
+  audiodata:

@@ -1,0 +1,64 @@
+{
+  "dataset": "l2arctic",
+  "license": "CC BY-NC 4.0 — measurement only, no fitted parameters",
+  "l1": "Arabic",
+  "speakers": {
+    "ABA": 150,
+    "SKA": 150,
+    "YBAA": 149,
+    "ZHAA": 150
+  },
+  "n_utterances": 599,
+  "n_phonemes": 19724,
+  "segmentation_ambiguity_rate": 0.016519712171886084,
+  "unsegmentable_chars": {},
+  "refine": "espeak",
+  "refined_symbols": 1318,
+  "error_detection_auc": 0.8012473063537137,
+  "truth_error_rate": 0.11138714256743054,
+  "diagnosis": {
+    "precision": 0.3165871456637665,
+    "recall": 0.5134274010013655,
+    "f1": 0.39166666666666666
+  },
+  "omission": {
+    "precision": 0.08792965627498002,
+    "recall": 0.3525641025641026,
+    "f1": 0.14075495841330773
+  },
+  "said_accuracy": 0.6288515406162465,
+  "said_n": 714,
+  "uncertain_rate": 0.15113567227742852,
+  "per_group": {
+    "affricate": {
+      "n": 308,
+      "auc": 0.6339742508573677,
+      "error_rate": 0.25
+    },
+    "approximant": {
+      "n": 2337,
+      "auc": 0.7697388632872504,
+      "error_rate": 0.044929396662387676
+    },
+    "fricative": {
+      "n": 3735,
+      "auc": 0.8082756218171936,
+      "error_rate": 0.11164658634538152
+    },
+    "nasal": {
+      "n": 2010,
+      "auc": 0.8172988924375713,
+      "error_rate": 0.013432835820895522
+    },
+    "stop": {
+      "n": 3543,
+      "auc": 0.8389340048478923,
+      "error_rate": 0.09427039232289021
+    },
+    "vowel": {
+      "n": 7791,
+      "auc": 0.7742918170764168,
+      "error_rate": 0.15877294313951995
+    }
+  }
+}

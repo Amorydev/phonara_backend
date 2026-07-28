@@ -61,11 +61,16 @@ func (s *AssessmentService) GetPreAssessment(ctx context.Context, f AssessmentFi
 	set := &AssessmentSet{Questions: []*AssessmentQuestion{}}
 
 	err := s.db.QueryRow(ctx,
+		// Không có code → lấy bộ ĐƯỢC ĐÁNH DẤU mặc định, không phải bộ version cao nhất.
+		// Dựa vào version thì một ngày ai đó bump version bộ benchmark (23 câu) và nó
+		// lặng lẽ thành bộ onboarding — người dùng mới phải đọc 5 phút mà không ai biết
+		// vì sao. Ưu tiên phải tường minh.
 		`SELECT id, code, type, title, description, cefr_level, locale
 		   FROM assessment_sets
 		  WHERE type = 'pre_assessment'
 		    AND is_active = TRUE
 		    AND ($1 = '' OR code = $1)
+		    AND ($1 <> '' OR is_default)
 		    AND ($2 = '' OR cefr_level = $2)
 		  ORDER BY version DESC, created_at DESC
 		  LIMIT 1`,

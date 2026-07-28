@@ -45,7 +45,7 @@ Bước 3 và 4 gần như miễn phí (3 ms mỗi bước); toàn bộ chi phí
 | 3 | p95 < 3 s cho câu 5 giây | ⚠️ p95 1,9 s cho audio 2,4 s (RTF 0,249) — cần đo lại trên phần cứng đích |
 | 4 | Tái lập kết quả trên speechocean762 | ❌ **chưa làm** |
 
-**Chưa dùng được cho production.** `calibration_vi.json` mang hậu tố `-PLACEHOLDER`: tham
+**Chưa dùng được cho production.** `calibration.json` mang hậu tố `-PLACEHOLDER`: tham
 số đặt bằng tay, chưa fit trên bất kỳ dữ liệu nào. Điểm số hiện tại **chưa có ý nghĩa** —
 chỉ có thứ tự tương đối là đáng tin. Xem giai đoạn 4 của plan.
 
@@ -63,12 +63,21 @@ RAM thấp làm rủi ro R7 (VPS rẻ) nhẹ hơn hẳn dự kiến.
 ## Test
 
 ```bash
-docker run --rm -v "$PWD":/w -w /w phonara-pytest-light python -m pytest tests/ -q
+docker build -f tests/Dockerfile -t phonara-pytest . && docker run --rm -v "$PWD":/w -w /w phonara-pytest python -m pytest tests/ -q
 ```
 
 Test logic thuần, không cần model: Needleman-Wunsch, calibration, tổng hợp, precedence
 chẩn đoán mức từ. Trong đó `test_no_clipping_of_positive_gop` là **bắt buộc** — nó chặn
 đúng lỗi miền giá trị đã từng có trong plan.
+
+`test_diagnosis.py` cần torch (quy tắc hợp nhất nhận log-probs) nên image test dựng trên
+`phonara-engine`, không dùng được image nhẹ cũ. Nó dựng tensor bằng tay thay vì chạy model:
+test quy tắc qua model thật sẽ biến một lỗi luật thành một lỗi "model đoán khác hôm nay".
+
+Hai test trong đó là **đối trọng**, không phải test tính năng — `test_uncertain_stays_
+uncertain_when_phoneme_present_in_posterior` và
+`test_confident_correct_is_never_downgraded_to_omission`. Thiếu chúng thì quy tắc 5 có thể
+biến mọi `uncertain` thành `omission` mà suite vẫn xanh, và đó đúng là cách precision tụt.
 
 Smoke test đường ống (cần container đang chạy):
 
@@ -103,13 +112,13 @@ GOP sụp từ khoảng `+1,7…+5,8` xuống `−0,5…−13,0` và accuracy c�
 
 | File | Trục version | Nội dung |
 |---|---|---|
-| `confusion_vi.json` | `algorithm_version` | bảng nhầm lẫn 2 tầng + nhóm âm |
-| `merge_rules_vi.json` | `algorithm_version` | `τ_uncertain`, `τ_gop_low/high` |
-| `calibration_vi.json` | `calibration_version` | ánh xạ GOP → 0–100, theo nhóm âm |
+| `confusion.json` | `algorithm_version` | bảng nhầm lẫn 2 tầng + nhóm âm |
+| `merge_rules.json` | `algorithm_version` | `τ_uncertain`, `τ_gop_low/high` |
+| `calibration.json` | `calibration_version` | ánh xạ GOP → 0–100, theo nhóm âm |
 
 Tách `merge_rules` khỏi `calibration` là cố ý — hai trục version khác nhau (§8).
 
-Sửa `confusion_vi.json` xong phải chạy lại:
+Sửa `confusion.json` xong phải chạy lại:
 
 ```bash
 docker run --rm -v "$PWD":/w -w /w/r1 phonara-r1 python inventory.py
