@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -159,4 +160,62 @@ func TestFreemiumHasEnoughFreePairs(t *testing.T) {
 	if free < 10 {
 		t.Errorf("chỉ có %d cặp miễn phí — quá ít để người dùng mới thấy giá trị", free)
 	}
+}
+
+// ── bộ đánh giá ban đầu ───────────────────────────────────────────────────────
+
+func TestOnboardingSetIsMarkedDefault(t *testing.T) {
+	t.Parallel()
+	// `GetPreAssessment` lọc `is_default` khi client không truyền code. Không bộ nào được
+	// đánh dấu thì endpoint trả 404 và onboarding chết ở màn hình đầu tiên.
+	//
+	// Migration 000009 chỉ UPDATE dòng đã tồn tại, nên trên database MỚI TINH (migration
+	// chạy trước seed) nó không đặt được cờ cho ai. Seed phải tự khai.
+	//
+	// Đọc thẳng mã nguồn vì đây là chuỗi SQL, không phải hàm gọi được từ test.
+	src := readSeedMain(t)
+
+	insert := extractOnboardingInsert(t, src)
+	if !strings.Contains(insert, "is_default") {
+		t.Fatal("câu INSERT bộ onboarding không khai is_default — GetPreAssessment sẽ trả 404 " +
+			"trên mọi database mới")
+	}
+	if !strings.Contains(insert, "TRUE") {
+		t.Fatal("is_default có mặt nhưng không đặt TRUE")
+	}
+}
+
+func TestBenchmarkSetIsNotDefault(t *testing.T) {
+	t.Parallel()
+	// Chỉ MỘT bộ được là mặc định — có unique index `ON assessment_sets(type) WHERE
+	// is_default` cưỡng chế. Bộ benchmark 23 câu mà thành mặc định thì người dùng mới phải
+	// đọc 5 phút trong onboarding.
+	src := readSeedMain(t)
+	if !strings.Contains(src, "'pre_assessment', $2, $3, 'en-US', $4, FALSE") {
+		t.Error("bộ benchmark phải khai is_default = FALSE tường minh")
+	}
+}
+
+func readSeedMain(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("đọc main.go: %v", err)
+	}
+	return string(b)
+}
+
+// extractOnboardingInsert lấy câu INSERT assessment_sets ĐẦU TIÊN — đó là bộ onboarding;
+// bộ benchmark nằm sau trong cùng file.
+func extractOnboardingInsert(t *testing.T, src string) string {
+	t.Helper()
+	i := strings.Index(src, "INSERT INTO assessment_sets")
+	if i < 0 {
+		t.Fatal("không tìm thấy INSERT INTO assessment_sets trong main.go")
+	}
+	end := strings.Index(src[i:], "RETURNING id")
+	if end < 0 {
+		t.Fatal("không tìm thấy điểm kết thúc câu INSERT")
+	}
+	return src[i : i+end]
 }

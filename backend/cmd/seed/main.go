@@ -143,11 +143,21 @@ func seedPreAssessment(ctx context.Context, pool *pgxpool.Pool) error {
 
 	var setID uuid.UUID
 	err := pool.QueryRow(ctx,
-		`INSERT INTO assessment_sets (code, type, title, description, locale, version)
-		 VALUES ($1, 'pre_assessment', $2, $3, 'en-US', $4)
+		// `is_default = TRUE` phải khai TƯỜNG MINH ở đây.
+		//
+		// Migration 000009 có câu `UPDATE ... SET is_default = TRUE` nhưng nó chỉ chạm vào
+		// dòng ĐÃ TỒN TẠI. Trên database mới tinh, migration chạy TRƯỚC seed nên không có
+		// gì để update, và cột mặc định FALSE — kết quả là không bộ nào là mặc định,
+		// `GetPreAssessment` trả 404 và onboarding chết ngay từ màn hình đầu.
+		//
+		// Lỗi này KHÔNG lộ ra trên máy dev vì ở đó dữ liệu có trước migration. Nó chỉ xuất
+		// hiện đúng lúc deploy lên máy sạch — và đã xảy ra thật.
+		`INSERT INTO assessment_sets (code, type, title, description, locale, version, is_default)
+		 VALUES ($1, 'pre_assessment', $2, $3, 'en-US', $4, TRUE)
 		 ON CONFLICT (code, version) DO UPDATE
 		   SET title = EXCLUDED.title,
 		       description = EXCLUDED.description,
+		       is_default = TRUE,
 		       is_active = TRUE
 		 RETURNING id`,
 		setCode,
