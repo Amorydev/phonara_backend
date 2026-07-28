@@ -42,6 +42,14 @@ ENTRYPOINT ["/worker"]
 FROM gcr.io/distroless/static-debian12 AS seed
 
 COPY --from=builder /out/seed /seed
-COPY seeds/ /seeds/
+
+# KHÔNG có `COPY seeds/ /seeds/`.
+#
+# Dòng đó từng tồn tại và làm hỏng build trên máy sạch: thư mục `seeds/` rỗng, mà git không
+# track thư mục rỗng — nên bản clone mới không có nó và `COPY` thất bại với
+# "/seeds: not found". Trên máy phát triển thì build được vì thư mục còn sót lại từ trước.
+#
+# Không cần nó thật: toàn bộ dữ liệu seed nằm cứng trong cmd/seed/content.go, không đường
+# code nào đọc /seeds.
 
 ENTRYPOINT ["/seed"]
