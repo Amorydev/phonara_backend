@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	goredis "github.com/redis/go-redis/v9"
 	"github.com/phonara/backend/internal/config"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 // NewClient creates and pings a Redis client.

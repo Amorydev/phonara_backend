@@ -58,8 +58,8 @@ func (h *MinimalPairHandler) StartListenDrill(c echo.Context) error {
 
 // answerRequest is the body for POST /v1/minimal-pairs/listen/:drill_id/answer.
 type answerRequest struct {
-	PairID      string `json:"pair_id" validate:"required,uuid"`
-	ChosenWord  string `json:"chosen_word" validate:"required"`
+	PairID     string `json:"pair_id" validate:"required,uuid"`
+	ChosenWord string `json:"chosen_word" validate:"required"`
 }
 
 // SubmitAnswer godoc

@@ -21,19 +21,19 @@ func TestObservationScoring(t *testing.T) {
 		why     string
 	}{
 		{
-			name:    "âm đúng dùng accuracy",
-			obs:     phonemeObservation{Accuracy: ptrF(88), Diagnosis: ptrS("correct")},
-			want:    88, counted: true,
+			name: "âm đúng dùng accuracy",
+			obs:  phonemeObservation{Accuracy: ptrF(88), Diagnosis: ptrS("correct")},
+			want: 88, counted: true,
 		},
 		{
-			name:    "thay thế vẫn tính, điểm thấp",
-			obs:     phonemeObservation{Accuracy: ptrF(31), Diagnosis: ptrS("substitution")},
-			want:    31, counted: true,
+			name: "thay thế vẫn tính, điểm thấp",
+			obs:  phonemeObservation{Accuracy: ptrF(31), Diagnosis: ptrS("substitution")},
+			want: 31, counted: true,
 		},
 		{
-			name:    "nuốt âm = 0, dù accuracy là NULL",
-			obs:     phonemeObservation{Accuracy: nil, Diagnosis: ptrS("omission")},
-			want:    0, counted: true,
+			name: "nuốt âm = 0, dù accuracy là NULL",
+			obs:  phonemeObservation{Accuracy: nil, Diagnosis: ptrS("omission")},
+			want: 0, counted: true,
 			why: "nuốt phụ âm cuối là lỗi phổ biến nhất; bỏ qua nó thì mastery của chính " +
 				"âm bị nuốt sẽ trông đẹp một cách sai lệch",
 		},
@@ -43,22 +43,22 @@ func TestObservationScoring(t *testing.T) {
 			counted: false,
 		},
 		{
-			name:    "uncertain VẪN tính bằng accuracy của nó",
-			obs:     phonemeObservation{Accuracy: ptrF(64), Diagnosis: ptrS("uncertain")},
-			want:    64, counted: true,
+			name: "uncertain VẪN tính bằng accuracy của nó",
+			obs:  phonemeObservation{Accuracy: ptrF(64), Diagnosis: ptrS("uncertain")},
+			want: 64, counted: true,
 			why: "bất định nằm ở NHÃN chứ không ở ĐIỂM — cùng quy tắc với " +
 				"aggregate.mean_accuracy của engine",
 		},
 		{
-			name:    "bản ghi cũ: diagnosis NULL + is_omission",
-			obs:     phonemeObservation{Accuracy: nil, IsOmission: true},
-			want:    0, counted: true,
+			name: "bản ghi cũ: diagnosis NULL + is_omission",
+			obs:  phonemeObservation{Accuracy: nil, IsOmission: true},
+			want: 0, counted: true,
 			why: "dữ liệu trước migration 000007 mang ngữ nghĩa omission ở cờ boolean",
 		},
 		{
-			name:    "bản ghi cũ: diagnosis NULL, có accuracy",
-			obs:     phonemeObservation{Accuracy: ptrF(75)},
-			want:    75, counted: true,
+			name: "bản ghi cũ: diagnosis NULL, có accuracy",
+			obs:  phonemeObservation{Accuracy: ptrF(75)},
+			want: 75, counted: true,
 		},
 		{
 			name:    "không có gì để chấm thì bỏ",

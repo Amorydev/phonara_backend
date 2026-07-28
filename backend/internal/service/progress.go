@@ -13,8 +13,8 @@ import (
 
 // StreakDTO holds streak information for a user.
 type StreakDTO struct {
-	CurrentStreak int    `json:"current_streak"`
-	LongestStreak int    `json:"longest_streak"`
+	CurrentStreak  int    `json:"current_streak"`
+	LongestStreak  int    `json:"longest_streak"`
 	LastActiveDate string `json:"last_active_date,omitempty"`
 }
 
@@ -113,10 +113,10 @@ func (s *ProgressService) Overview(ctx context.Context, userID uuid.UUID) (map[s
 		userID).Scan(&totalSessions)
 
 	return map[string]any{
-		"current_streak":  current,
-		"longest_streak":  longest,
+		"current_streak":   current,
+		"longest_streak":   longest,
 		"last_active_date": lastActive,
-		"total_sessions":  totalSessions,
+		"total_sessions":   totalSessions,
 	}, nil
 }
 

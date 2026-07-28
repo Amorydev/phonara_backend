@@ -22,14 +22,14 @@ type ContentFilter struct {
 
 // ContentItem is the DTO for a word or sentence.
 type ContentItem struct {
-	ID           string   `json:"id"`
-	Type         string   `json:"type"`
-	Text         string   `json:"text"`
-	IPA          *string  `json:"ipa,omitempty"`
-	AudioURLUS   *string  `json:"audio_url_us,omitempty"`
-	AudioURLUK   *string  `json:"audio_url_uk,omitempty"`
-	Topic        *string  `json:"topic,omitempty"`
-	Difficulty   int      `json:"difficulty"`
+	ID            string   `json:"id"`
+	Type          string   `json:"type"`
+	Text          string   `json:"text"`
+	IPA           *string  `json:"ipa,omitempty"`
+	AudioURLUS    *string  `json:"audio_url_us,omitempty"`
+	AudioURLUK    *string  `json:"audio_url_uk,omitempty"`
+	Topic         *string  `json:"topic,omitempty"`
+	Difficulty    int      `json:"difficulty"`
 	FocusPhonemes []string `json:"focus_phonemes,omitempty"`
 }
 
@@ -48,12 +48,12 @@ type MinimalPairItem struct {
 
 // PassageItem is the DTO for a shadowing passage.
 type PassageItem struct {
-	ID            string `json:"id"`
-	Title         string `json:"title"`
-	Source        string `json:"source"`
+	ID            string  `json:"id"`
+	Title         string  `json:"title"`
+	Source        string  `json:"source"`
 	Topic         *string `json:"topic,omitempty"`
-	Difficulty    int    `json:"difficulty"`
-	SentenceCount int    `json:"sentence_count"`
+	Difficulty    int     `json:"difficulty"`
+	SentenceCount int     `json:"sentence_count"`
 }
 
 // PassageSentenceItem is a sentence within a passage.
@@ -67,11 +67,11 @@ type PassageSentenceItem struct {
 
 // FixGuideItem is the DTO for a fix guide.
 type FixGuideItem struct {
-	ID              string `json:"id"`
-	TonguePosVI     *string `json:"tongue_position_vi,omitempty"`
-	MediaURL        *string `json:"media_url,omitempty"`
-	Examples        any     `json:"examples"`
-	IsSimplified    bool    `json:"is_simplified"`
+	ID           string  `json:"id"`
+	TonguePosVI  *string `json:"tongue_position_vi,omitempty"`
+	MediaURL     *string `json:"media_url,omitempty"`
+	Examples     any     `json:"examples"`
+	IsSimplified bool    `json:"is_simplified"`
 }
 
 // ContentService handles content retrieval.
@@ -226,7 +226,11 @@ func (s *ContentService) GetFixGuide(ctx context.Context, f ContentFilter) (*Fix
 	return item, nil
 }
 
-func (s *ContentService) scanContentItems(rows interface{ Next() bool; Scan(dest ...any) error; Err() error }) ([]*ContentItem, error) {
+func (s *ContentService) scanContentItems(rows interface {
+	Next() bool
+	Scan(dest ...any) error
+	Err() error
+}) ([]*ContentItem, error) {
 	var items []*ContentItem
 	for rows.Next() {
 		item := &ContentItem{}

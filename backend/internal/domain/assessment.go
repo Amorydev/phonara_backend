@@ -128,12 +128,12 @@ func (r *NormalizedAssessmentResult) Supports(c Capability) bool {
 type EngineErrorCode string
 
 const (
-	EngErrAudioTooShort     EngineErrorCode = "audio_too_short"
-	EngErrAudioTooLong      EngineErrorCode = "audio_too_long"
-	EngErrNoSpeechDetected  EngineErrorCode = "no_speech_detected"
-	EngErrG2PFailed         EngineErrorCode = "g2p_failed"
-	EngErrModelOverloaded   EngineErrorCode = "model_overloaded"
-	EngErrInternal          EngineErrorCode = "internal"
+	EngErrAudioTooShort    EngineErrorCode = "audio_too_short"
+	EngErrAudioTooLong     EngineErrorCode = "audio_too_long"
+	EngErrNoSpeechDetected EngineErrorCode = "no_speech_detected"
+	EngErrG2PFailed        EngineErrorCode = "g2p_failed"
+	EngErrModelOverloaded  EngineErrorCode = "model_overloaded"
+	EngErrInternal         EngineErrorCode = "internal"
 )
 
 // EngineError là thân lỗi engine trả về.

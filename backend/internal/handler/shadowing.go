@@ -71,12 +71,12 @@ func (h *ShadowingHandler) SubmitSentenceResult(c echo.Context) error {
 	}
 
 	result, err := h.svc.SubmitSentenceResult(ctxFromRequest(c), service.ShadowingSentenceInput{
-		UserID:     userID,
-		PassageID:  c.Param("passage_id"),
-		OrderIndex: req.OrderIndex,
+		UserID:       userID,
+		PassageID:    c.Param("passage_id"),
+		OrderIndex:   req.OrderIndex,
 		ScoringLevel: req.ScoringLevel,
-		PARaw:      req.PARaw,
-		AudioRef:   req.AudioRef,
+		PARaw:        req.PARaw,
+		AudioRef:     req.AudioRef,
 	})
 	if err != nil {
 		return err

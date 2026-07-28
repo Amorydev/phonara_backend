@@ -84,9 +84,9 @@ var englishConsonants = map[string]bool{
 
 // phonemeObservation là một lần âm vị được chấm.
 type phonemeObservation struct {
-	Phoneme   string
-	Accuracy  *float64
-	Diagnosis *string
+	Phoneme    string
+	Accuracy   *float64
+	Diagnosis  *string
 	IsOmission bool
 }
 
