@@ -1,0 +1,61 @@
+# Biến thể GPU. Dùng cho serverless GPU (Modal, RunPod, Cloud Run GPU).
+#
+#   docker build -f Dockerfile.gpu -t phonara-engine-gpu .
+#   docker run --gpus all -e PE_DEVICE=cuda -p 8000:8000 phonara-engine-gpu
+#
+# KHÁC `Dockerfile` ĐÚNG MỘT ĐIỀU: PyTorch bản CUDA thay vì bản CPU-only.
+#
+# Bản CPU-only (`--extra-index-url .../whl/cpu`) KHÔNG chứa kernel CUDA nào. Chạy nó trên
+# máy có GPU thì `torch.cuda.is_available()` trả False và mọi thứ vẫn chạy bằng CPU — tức
+# trả tiền thuê GPU mà không dùng. `Settings.resolved_device()` ném lỗi ngay lúc khởi động
+# nếu `PE_DEVICE=cuda` gặp tình huống đó, thay vì để nó âm thầm chậm.
+#
+# ĐÁNH ĐỔI: image phình từ ~3,8 GB lên ~7–9 GB vì CUDA runtime. Với serverless, đó là thời
+# gian cold start. Nếu nền tảng hỗ trợ nạp trọng số từ ổ mạng, cân nhắc bỏ bước nướng model
+# vào image (dòng `RUN python -c ...` bên dưới) để đổi lấy image nhỏ hơn nhiều — đánh đổi là
+# mất tính tái lập mà `MODEL_REVISION` ghim SHA đang bảo đảm.
+
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HOME=/models \
+    TRANSFORMERS_VERBOSITY=error
+
+# espeak-ng: G2P chạy qua tokenizer của chính model, cần binary này có mặt.
+# Phiên bản của nó là `g2p_version` (§8) — đổi base image có thể đổi chuỗi phoneme.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends espeak-ng curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# PyTorch CUDA. KHÔNG có `--extra-index-url .../whl/cpu` — đó là toàn bộ khác biệt.
+RUN pip install --no-cache-dir "torch==2.5.1" \
+ && pip install --no-cache-dir \
+      "transformers==4.46.3" \
+      "phonemizer==3.3.0" \
+      "fastapi==0.115.5" \
+      "uvicorn==0.32.1" \
+      "pydantic==2.9.2" \
+      "pydantic-settings==2.6.1" \
+      "python-multipart==0.0.19" \
+      "numpy==2.1.3"
+
+WORKDIR /srv
+COPY artifacts/ ./artifacts/
+COPY app/ ./app/
+
+# Nướng trọng số vào image, ghim theo SHA. Cùng lý do với Dockerfile bản CPU: không phụ
+# thuộc mạng lúc khởi động, và `model_version` trong mỗi kết quả truy được về đúng bản này.
+ARG MODEL_ID=facebook/wav2vec2-xlsr-53-espeak-cv-ft
+ARG MODEL_REVISION=2c733782da5604684829819a5eb744c193fe9398
+RUN python -c "\
+from transformers import Wav2Vec2ForCTC, Wav2Vec2PhonemeCTCTokenizer; \
+Wav2Vec2PhonemeCTCTokenizer.from_pretrained('${MODEL_ID}', revision='${MODEL_REVISION}'); \
+Wav2Vec2ForCTC.from_pretrained('${MODEL_ID}', revision='${MODEL_REVISION}')"
+
+# `auto` để image này vẫn chạy được trên máy không GPU (CI, kiểm thử cục bộ). Trên máy
+# production có GPU nên đặt `PE_DEVICE=cuda` để hỏng TO TIẾNG nếu GPU không được cấp.
+ENV PE_DEVICE=auto
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

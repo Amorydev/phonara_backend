@@ -452,7 +452,7 @@ Không sang giai đoạn 2 nếu chưa đủ **cả bốn**:
 |---|---|---|
 | 1 | `/v1/assess` trả đúng contract §2.1 trên audio thật | ✅ |
 | 2 | ~~Vocab G2P khớp vocab model~~ | ✅ §9.1 |
-| 3 | p50/p95 trên phần cứng đích; p95 < 3 s cho câu 5 giây | ⚠️ một phần — xem dưới |
+| 3 | p50/p95 trên phần cứng đích; p95 < 3 s cho câu 5 giây | ❌ **TRƯỢT trên VPS** — xem dưới |
 | 4 | Tái lập kết quả trên speechocean762 tương đương paper | ❌ **chưa làm** |
 
 **Điều kiện 3 — đo được (Docker Desktop / Apple Silicon, audio 2,43 s):**
@@ -469,6 +469,114 @@ Hai điều rút ra:
   không phải vào thuật toán GOP. Cũng nghĩa là **mở rộng bảng nhầm lẫn gần như không tốn
   thêm gì** — lever cho recall ở §6.3 rẻ hơn plan giả định.
 - Chưa đo trên phần cứng production thật và chưa đo với câu 5 giây. Đánh dấu một phần.
+
+### 3.6.5 Đo trên VPS thật — ĐIỀU KIỆN 3 TRƯỢT (2026-07-28)
+
+Deploy lên VPS SSD Nodes (Ubuntu 20.04, x86) và đo bằng **cùng một file 7,0 giây** trên cả
+hai máy, đọc `timing_ms.forward` do chính engine báo:
+
+| | forward | RTF |
+|---|---|---|
+| Máy dev (Apple Silicon, 7 luồng torch), đã ấm | 599–884 ms | **0,09–0,13** |
+| Máy dev, lần gọi ĐẦU sau khi rỗi | 2.652 ms | 0,38 |
+| **VPS** (hai lần đo cách nhau vài phút) | **11.730 / 17.561 ms** | **1,68 / 2,51** |
+
+Người dùng thấy tổng **14,3 giây** cho một câu 7 giây: upload 0,5 s + hàng đợi và nhịp poll
+~2 s + engine 11,8 s.
+
+**Điều kiện 3 trượt.** RTF > 1 nghĩa là xử lý lâu hơn cả độ dài audio; câu 5 giây mất 9–13 s
+so với mục tiêu p95 < 3 s.
+
+Ba điều rút ra:
+
+1. **Khoảng cách 20–30 lần** giữa máy dev và VPS lớn hơn nhiều so với khác biệt thế hệ CPU
+   thông thường. Giả thuyết ban đầu là số luồng — **đã đo và BÁC BỎ**, xem §3.6.5.1.
+2. **Dao động 11,7 → 17,6 s** giữa hai lần đo cùng điều kiện — dấu hiệu tranh chấp CPU. VPS
+   này còn chạy hai project khác.
+3. **Lần gọi đầu sau khi rỗi chậm gấp ~4 lần** ngay cả trên máy dev. `warm_up()` lúc khởi
+   động không đủ; PyTorch nguội trở lại sau một khoảng không dùng.
+
+⚠️ **Bài học phương pháp:** con số RTF 0,249 ở trên đo trên máy phát triển và đã kèm chú
+thích "chưa đo trên phần cứng production". Chú thích đó đúng nhưng quá nhẹ — nó vẫn được
+dùng như thể là số thật trong suốt quá trình thiết kế. Số đo trên máy dev **không dùng để
+lập kế hoạch hạ tầng được**, kể cả khi có ghi chú.
+
+#### 3.6.5.1 Số luồng KHÔNG phải nguyên nhân — kết quả âm tính
+
+Giả thuyết đầu tiên là engine trên VPS chỉ dùng 1 luồng (do chia
+`số_core ÷ max_concurrent_inference`) trong khi máy dev dùng 7. Đo bằng cách chạy engine với
+`PE_TORCH_THREADS` khác nhau trên **cùng máy dev, cùng file 7 giây**:
+
+| luồng | forward (ấm) | so với 1 luồng |
+|---|---|---|
+| 1 | 1.282 ms | — |
+| 2 | 890 ms | 1,44× |
+| 4 | 764 ms | 1,68× |
+| 8 | 706 ms | 1,82× |
+| 14 | 652 ms | **1,97×** |
+
+**Bão hoà sau 2–4 luồng.** Từ 1 lên 14 luồng chỉ được gấp đôi — không thể giải thích khoảng
+cách 20–30 lần.
+
+Cấu hình VPS (xác nhận 2026-07-28): **2 vCPU**, 8 GB RAM, Ubuntu 20.04. Với
+`max_concurrent_inference = 2` thì engine đang chạy đúng **1 luồng**.
+
+Phép so quyết định: máy dev chạy **một luồng duy nhất** vẫn là 1.282 ms, còn VPS ở cùng
+1 luồng là 11.730–17.561 ms. Chậm hơn **9–14 lần trên mỗi luồng**.
+
+Kết luận: **CPU của VPS chậm thật**, không phải engine cấu hình sai. Chỉnh `PE_TORCH_THREADS`
+vẫn nên làm (miễn phí, được ~1,4× khi lên 2 luồng) nhưng nó không cứu được điều kiện 3.
+
+**Hệ quả cho việc chọn máy — quan trọng:** vì thang luồng bão hoà sau 2–4 luồng, mua thêm
+vCPU trên **cùng loại CPU chậm** gần như vô ích (2→4 luồng chỉ được 1,16×). Thứ cần là
+**tốc độ mỗi nhân**, không phải số nhân. Nâng từ 2 lên 8 vCPU cùng dòng chỉ được ~1,26×;
+đổi sang CPU nhanh hơn mỗi nhân mới là đòn bẩy thật.
+
+RAM 8 GB dư nhiều (engine dùng 451 MiB) — đây là cấu hình chọn theo nhu cầu web app thông
+thường, trong khi workload thực tế bám CPU.
+
+Hệ quả cho §3.6.6: đòn bẩy phần mềm có trần. Ngay cả khi lượng tử hoá INT8 (~2–3×) cộng
+ONNX (~1,5–2×) đạt hết mức lý thuyết, 11,7 s chỉ xuống khoảng 2–4 s cho câu 7 giây — vừa
+chạm ngưỡng, và chưa tính dao động do tranh chấp CPU. **Phần cứng là ràng buộc chính.**
+
+### 3.6.6 Đường cải thiện tốc độ — chưa thử
+
+Xếp theo (tác động ÷ công sức). Con số là ước lượng từ tài liệu chung về suy luận
+transformer trên CPU, **chưa đo trên chính engine này**.
+
+| # | Cách | Ước tính | Công sức | Rủi ro |
+|---|---|---|---|---|
+| 1 | `PE_TORCH_THREADS` = số core, `PE_MAX_CONCURRENT_INFERENCE=1` | **~1,4×** (đã đo) | vài phút | mất chạy song song |
+| 2 | Lượng tử hoá động INT8 | ~2–3× *(ước)* | nửa ngày | **phải đo lại độ chính xác** |
+| 3 | ONNX Runtime | ~1,5–2× *(ước)* | 1–2 ngày | thêm một trục version (§8) |
+| 4 | Cắt khoảng lặng đầu/cuối audio | tỉ lệ thuận độ dài | vài giờ | ít |
+| 5 | **VPS mạnh hơn** | 9–14× *(suy từ đo)* | 0 | tiền |
+| 6 | **GPU** — `Dockerfile.gpu` + `PE_DEVICE=cuda` | ~100× *(ước)* | **đã xây** | image 7–9 GB, cold start |
+
+Chỉ mục 1 và 5 có cơ sở đo đạc; mục 2–3 là ước lượng từ tài liệu chung về suy luận
+transformer trên CPU, chưa thử trên engine này.
+
+**Mục 1 làm trước** vì miễn phí — nhưng §3.6.5.1 cho thấy nó chỉ được ~1,4×, không cứu được
+điều kiện 3.
+
+**Mục 2 là đòn bẩy kỹ thuật lớn nhất**, và điểm mạnh là **đo được**: chạy lại
+`eval/l2arctic.py` sau khi lượng tử hoá rồi so AUC với **0,8314** hiện tại. Mất chính xác
+bao nhiêu sẽ là con số, không phải phỏng đoán. Đây đúng là thứ bộ đo ở §6.1.1 sinh ra để
+trả lời.
+
+**Mục 3 chỉ sau khi 1–2 hết dư địa:** nó thêm một bước dựng model, tức thêm một trục version
+phải theo dõi.
+
+Lưu ý §10 đã ghi "GPU chỉ khi p95 CPU không đạt yêu cầu. Đo trước, đừng mua trước." Giờ đã
+đo và không đạt.
+
+**Hỗ trợ GPU đã có sẵn** (2026-07-28): `Dockerfile.gpu` + `PE_DEVICE=cuda`. Chỉ forward
+pass chạy trên GPU; log-probs kéo về CPU ngay để `gop.py` và `diagnosis.py` không phải biết
+GPU tồn tại — ranh giới thiết bị nằm gọn một chỗ trong `assess.run`.
+
+`PE_DEVICE=cuda` **ném lỗi lúc khởi động** nếu không có GPU, thay vì âm thầm rơi về CPU.
+Kiểu hỏng im lặng đó nghĩa là trả tiền thuê GPU mà chạy bằng CPU — `test_explicit_cuda_
+without_gpu_raises` giữ cho nó không quay lại.
 
 **Điều kiện 4** — vòng đánh giá đã dựng tại `pronunciation-engine/eval/`. Xem §3.6.2.
 

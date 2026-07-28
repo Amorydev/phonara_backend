@@ -54,6 +54,9 @@ class Engine:
     id_to_symbol: dict[int, str]
     model_version: str
     g2p_version: str
+    # Thiết bị chạy forward pass. CHỈ forward — log-probs được kéo về CPU ngay sau đó,
+    # xem `assess.run`.
+    device: str = "cpu"
     warmed_up: bool = False
 
     _warned_no_candidates: set[str] = field(default_factory=set)
@@ -102,9 +105,16 @@ def load() -> Engine:
     global _engine
     t0 = time.perf_counter()
 
+    device = settings.resolved_device()
+
+    # `torch_threads` chỉ có nghĩa khi chạy CPU. Trên GPU thì forward nằm ở GPU, còn phần
+    # CPU còn lại (GOP, Needleman-Wunsch) chỉ tốn vài chục ms nên không cần siết luồng.
     threads = settings.resolved_torch_threads()
-    torch.set_num_threads(threads)
-    log.info("torch threads = %d", threads)
+    if device == "cpu":
+        torch.set_num_threads(threads)
+        log.info("thiết bị = cpu | torch threads = %d", threads)
+    else:
+        log.info("thiết bị = %s | %s", device, torch.cuda.get_device_name(0))
 
     tokenizer = Wav2Vec2PhonemeCTCTokenizer.from_pretrained(
         settings.model_id, revision=settings.model_revision
@@ -113,6 +123,7 @@ def load() -> Engine:
         settings.model_id, revision=settings.model_revision
     )
     model.eval()
+    model.to(device)
 
     vocab = tokenizer.get_vocab()
     table = confusion.load(settings.confusion_path, vocab)
@@ -138,6 +149,7 @@ def load() -> Engine:
         id_to_symbol={i: s for s, i in vocab.items()},
         model_version=f"xlsr53-espeak@{settings.model_revision}",
         g2p_version=_espeak_version(),
+        device=device,
     )
 
     log.info(
@@ -161,6 +173,6 @@ def warm_up() -> None:
     eng = get()
     t0 = time.perf_counter()
     with torch.no_grad():
-        eng.model(torch.zeros(1, settings.sample_rate)).logits
+        eng.model(torch.zeros(1, settings.sample_rate, device=eng.device)).logits
     eng.warmed_up = True
     log.info("warm-up xong trong %.1fs", time.perf_counter() - t0)

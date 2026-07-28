@@ -63,10 +63,21 @@ def run(
     canonical_ids = [vocab[p] for p in canonical]
 
     # ── 2. Forward, một lần duy nhất ────────────────────────────────────────────
+    #
+    # Đây là RANH GIỚI THIẾT BỊ duy nhất trong toàn bộ đường ống: forward chạy trên
+    # `eng.device` (GPU nếu có), rồi log-probs được kéo về CPU ngay.
+    #
+    # Vì sao không để log-probs ở lại GPU: `gop.py` dựng tensor bằng `torch.zeros` /
+    # `torch.tensor` mặc định trên CPU, nên `F.ctc_loss` sẽ lỗi lệch thiết bị. Sửa cả
+    # gop.py và diagnosis.py để nhận thiết bị là mở rộng bề mặt lỗi cho một khoản lời rất
+    # nhỏ — hai bước đó cộng lại chỉ 60–280 ms, còn forward chiếm ~99% thời gian.
+    #
+    # Chuyển đúng chỗ tốn thời gian, để phần còn lại không phải biết GPU tồn tại.
     t0 = time.perf_counter()
     with torch.no_grad():
-        logits = eng.model(torch.from_numpy(waveform).unsqueeze(0)).logits[0]
-        log_probs = torch.log_softmax(logits, dim=-1)
+        audio = torch.from_numpy(waveform).unsqueeze(0).to(eng.device)
+        logits = eng.model(audio).logits[0]
+        log_probs = torch.log_softmax(logits, dim=-1).cpu()
     t_forward = time.perf_counter() - t0
 
     # ── 3. GOP ──────────────────────────────────────────────────────────────────

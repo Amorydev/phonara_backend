@@ -47,12 +47,44 @@ class Settings(BaseSettings):
         default=64, description="Chặn bộ nhớ khi câu dài sinh nhiều chuỗi nhiễu"
     )
 
+    device: str = Field(
+        default="auto",
+        description="auto | cpu | cuda. `auto` dùng GPU nếu có, ngược lại CPU.",
+    )
+
     def resolved_torch_threads(self) -> int:
         if self.torch_threads > 0:
             return self.torch_threads
         cores = os.cpu_count() or 2
         # Chia theo semaphore để hai request đồng thời không tranh CPU của nhau (§3.4)
         return max(1, cores // max(1, self.max_concurrent_inference))
+
+    def resolved_device(self) -> str:
+        """Thiết bị chạy forward pass.
+
+        `cuda` KHÔNG âm thầm rơi về CPU: đặt `PE_DEVICE=cuda` mà máy không có GPU sẽ ném
+        lỗi ngay lúc khởi động. Rơi về CPU trong im lặng nghĩa là trả tiền thuê GPU nhưng
+        chạy bằng CPU — và chỉ phát hiện khi nhìn hoá đơn, hoặc khi thắc mắc vì sao vẫn
+        chậm y như cũ.
+
+        Image mặc định cài PyTorch bản CPU-only (xem `Dockerfile`), nên `cuda` chỉ dùng
+        được với `Dockerfile.gpu`.
+        """
+        import torch
+
+        if self.device == "cpu":
+            return "cpu"
+        if self.device == "cuda":
+            if not torch.cuda.is_available():
+                raise RuntimeError(
+                    "PE_DEVICE=cuda nhưng torch.cuda.is_available() = False. Thường do "
+                    "image dựng bằng Dockerfile (PyTorch CPU-only) thay vì Dockerfile.gpu, "
+                    "hoặc container chưa được cấp GPU."
+                )
+            return "cuda"
+        if self.device == "auto":
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        raise ValueError(f"PE_DEVICE không hợp lệ: {self.device!r} (auto | cpu | cuda)")
 
 
 settings = Settings()
