@@ -178,6 +178,33 @@ services:
       - seed
     logging: *default-logging
 
+  # Dọn audio mẫu không còn dòng CSDL nào trỏ tới.
+  #
+  #   docker compose -f docker-compose.yml -f docker-compose.behind-proxy.yml \
+  #     run --rm prune-samples             # chạy khô, chỉ liệt kê
+  #   ... run --rm prune-samples -delete   # xoá thật
+  #
+  # KHÔNG có `-delete` trong command: mặc định phải là chạy khô. Xem danh sách trước rồi
+  # mới xoá — object đã xoá không lấy lại được.
+  prune-samples:
+    build:
+      context: .
+      target: prune-samples
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    profiles:
+      - seed
+    logging: *default-logging
+
   migrate:
     image: migrate/migrate:latest
     volumes:

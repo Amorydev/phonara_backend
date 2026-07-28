@@ -220,6 +220,32 @@ services:
       - seed
     logging: *default-logging
 
+  # Dọn audio mẫu mồ côi (dòng CSDL sinh ra nó đã bị xoá hoặc đổi id).
+  #
+  #   docker compose -f docker-compose.prod.yml --profile seed run --rm prune-samples
+  #   ... run --rm prune-samples -delete
+  #
+  # Mặc định chạy khô — `-delete` do người vận hành tự thêm sau khi xem danh sách.
+  # Không cần Redis: lệnh này chỉ đọc CSDL và bucket mẫu.
+  prune-samples:
+    build:
+      context: .
+      target: prune-samples
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      S3_ENDPOINT: http://minio:9000
+      STORAGE_DRIVER: s3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    profiles:
+      - seed
+    logging: *default-logging
+
   migrate:
     image: migrate/migrate:latest
     volumes:

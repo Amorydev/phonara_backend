@@ -23,6 +23,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /out/seed ./cmd/seed
 
+# Build prune-samples binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /out/prune-samples ./cmd/prune-samples
+
 # ── API runtime ───────────────────────────────────────────────────────────────
 FROM gcr.io/distroless/static-debian12 AS api
 
@@ -53,3 +57,16 @@ COPY --from=builder /out/seed /seed
 # code nào đọc /seeds.
 
 ENTRYPOINT ["/seed"]
+
+# ── prune-samples runtime ─────────────────────────────────────────────────────
+#
+# Binary RIÊNG, không gộp thành cờ của `seed`. Lý do: đây là lệnh XOÁ, còn `seed` là lệnh
+# chạy thường xuyên khi triển khai. Gộp lại thì một lỗi gõ trong quy trình deploy có thể
+# xoá file; tách ra thì muốn xoá phải gọi đích danh.
+#
+# Không đặt `-delete` vào ENTRYPOINT — mặc định là chạy khô, người vận hành tự thêm cờ.
+FROM gcr.io/distroless/static-debian12 AS prune-samples
+
+COPY --from=builder /out/prune-samples /prune-samples
+
+ENTRYPOINT ["/prune-samples"]
