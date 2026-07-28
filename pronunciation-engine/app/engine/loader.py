@@ -83,6 +83,11 @@ class Engine:
         return out
 
 
+#: Backend lượng tử hoá chạy được trên x86. `x86` là mặc định của torch từ 1.13 và điều
+#: phối xuống fbgemm/onednn; `fbgemm` là tên cũ, vẫn có mặt. Chỉ cần MỘT trong hai.
+_X86_QUANT_ENGINES = ("x86", "fbgemm")
+
+
 def _quantize_int8(model: Wav2Vec2ForCTC, device: str) -> Wav2Vec2ForCTC:
     """Lượng tử hoá động INT8 trên các lớp `nn.Linear`.
 
@@ -95,9 +100,10 @@ def _quantize_int8(model: Wav2Vec2ForCTC, device: str) -> Wav2Vec2ForCTC:
     1. **Chỉ CPU.** Trên CUDA thì đường INT8 động này vô nghĩa (kernel là fbgemm/qnnpack,
        đều của CPU) và sẽ kéo forward về CPU trong im lặng.
 
-    2. **Phải có fbgemm.** Trên máy ARM không có nó, `bench_host.py` đo được 0,94× — tức
-       CHẬM HƠN FP32, mà vẫn phải trả giá bằng sai lệch điểm số. Khởi động được trong tình
-       trạng đó là kịch bản tệ nhất: mất chính xác, không được gì.
+    2. **Phải có backend x86** (`x86` hoặc `fbgemm`). Trên máy ARM chỉ có qnnpack, và ở đó
+       `bench_host.py` đo được 0,94× — tức CHẬM HƠN FP32, mà vẫn phải trả giá bằng sai lệch
+       điểm số. Khởi động được trong tình trạng đó là kịch bản tệ nhất: mất chính xác,
+       không được gì.
 
     3. **`inplace=True`.** Mặc định `quantize_dynamic` deepcopy cả model trước khi đổi.
        Weights FP32 là ~1,27 GB, bản sao đẩy đỉnh lên ~2,5 GB — vượt hạn mức 2G của
@@ -111,13 +117,21 @@ def _quantize_int8(model: Wav2Vec2ForCTC, device: str) -> Wav2Vec2ForCTC:
         )
 
     supported = torch.backends.quantized.supported_engines
-    if "fbgemm" not in supported:
+    if not any(engine in supported for engine in _X86_QUANT_ENGINES):
         raise RuntimeError(
-            "PE_QUANTIZE=int8 nhưng máy này không có fbgemm "
-            f"(chỉ có: {', '.join(supported)}). fbgemm là backend x86; trên ARM đo được "
-            "0,94× — chậm hơn FP32 mà vẫn lệch điểm. Để PE_QUANTIZE=off."
+            "PE_QUANTIZE=int8 nhưng máy này không có backend lượng tử hoá x86 "
+            f"(chỉ có: {', '.join(supported)}). Trên ARM `bench_host.py` đo được 0,94× — "
+            "chậm hơn FP32 mà vẫn lệch điểm. Để PE_QUANTIZE=off."
         )
-    torch.backends.quantized.engine = "fbgemm"
+
+    # KHÔNG ép `torch.backends.quantized.engine`. Từ torch 1.13, mặc định trên x86 là
+    # `x86` — một bộ điều phối chọn fbgemm hay onednn theo từng op, và trên CPU có VNNI
+    # thường nhanh hơn fbgemm thuần. Ép về fbgemm là tự hạ cấp.
+    #
+    # Lý do quan trọng hơn: `bench/bench_host.py` đo với mặc định. Ép engine ở đây mà
+    # không ép trong bench nghĩa là con số dùng để ra quyết định đo một thứ, còn
+    # production chạy một thứ khác. Cả hai phải nhìn cùng một backend.
+    log.info("backend lượng tử hoá = %s", torch.backends.quantized.engine)
 
     t0 = time.perf_counter()
     quantized = torch.ao.quantization.quantize_dynamic(

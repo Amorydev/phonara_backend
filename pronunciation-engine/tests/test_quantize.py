@@ -44,9 +44,12 @@ def _fake_quant_backend(monkeypatch, engines: list[str]) -> None:
     )
 
 
-needs_fbgemm = pytest.mark.skipif(
-    "fbgemm" not in torch.backends.quantized.supported_engines,
-    reason="fbgemm chỉ có trên x86 — hành vi trên máy ARM không suy ra được cho VPS",
+needs_x86 = pytest.mark.skipif(
+    not any(
+        engine in torch.backends.quantized.supported_engines
+        for engine in ("x86", "fbgemm")
+    ),
+    reason="backend x86 không có trên máy ARM — hành vi ở đó không suy ra được cho VPS",
 )
 
 
@@ -84,17 +87,34 @@ def test_refuses_non_cpu_device():
         _quantize_int8(_TinyModel(), "cuda")
 
 
-def test_refuses_when_fbgemm_missing(monkeypatch):
-    """Không có fbgemm thì INT8 đo được 0,94× — CHẬM HƠN FP32 mà vẫn lệch điểm.
+def test_refuses_when_no_x86_backend(monkeypatch):
+    """Chỉ có qnnpack (máy ARM) thì INT8 đo được 0,94× — CHẬM HƠN FP32 mà vẫn lệch điểm.
 
     Khởi động được trong tình trạng đó là kịch bản tệ nhất: mất chính xác, không được gì.
     """
     _fake_quant_backend(monkeypatch, ["none", "qnnpack"])
-    with pytest.raises(RuntimeError, match="fbgemm"):
+    with pytest.raises(RuntimeError, match="backend lượng tử hoá x86"):
         _quantize_int8(_TinyModel(), "cpu")
 
 
-@needs_fbgemm
+def test_accepts_x86_dispatcher_not_just_fbgemm(monkeypatch):
+    """`x86` MỘT MÌNH phải được chấp nhận.
+
+    Từ torch 1.13, `x86` là backend mặc định trên máy x86 — một bộ điều phối chọn fbgemm
+    hay onednn theo từng op, và trên CPU có VNNI thường nhanh hơn fbgemm thuần. Bản đầu của
+    hàm này đòi đúng chữ `fbgemm` rồi gán `engine = "fbgemm"`, tức tự hạ cấp khỏi mặc định
+    — và tệ hơn, làm `bench/bench_host.py` (chạy với mặc định) đo một backend khác với
+    backend engine thật sự dùng. Số đo và production phải nhìn cùng một thứ.
+    """
+    _fake_quant_backend(monkeypatch, ["x86", "onednn", "none"])
+
+    _quantize_int8(_TinyModel().eval(), "cpu")
+
+    # Engine giữ nguyên mặc định, không bị hàm này ghi đè.
+    assert torch.backends.quantized.engine == "x86"
+
+
+@needs_x86
 def test_quantizes_in_place():
     """Test quan trọng nhất trong file — đây là lớp bảo vệ chống OOM.
 
@@ -109,7 +129,7 @@ def test_quantizes_in_place():
     assert _quantize_int8(model, "cpu") is model
 
 
-@needs_fbgemm
+@needs_x86
 def test_only_linear_layers_change():
     model = _TinyModel().eval()
     quantized = _quantize_int8(model, "cpu")
@@ -121,7 +141,7 @@ def test_only_linear_layers_change():
     assert isinstance(quantized.conv, nn.Conv1d)
 
 
-@needs_fbgemm
+@needs_x86
 def test_quantized_model_still_runs():
     model = _TinyModel().eval()
     quantized = _quantize_int8(model, "cpu")

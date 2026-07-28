@@ -167,8 +167,14 @@ Ba điều kiện, mỗi điều fail fast **lúc khởi động** chứ không 
 
 1. **Chỉ CPU.** `PE_QUANTIZE=int8` cùng `PE_DEVICE=cuda` bị từ chối — kernel INT8 động là
    fbgemm/qnnpack, đều của CPU, bật cùng GPU là tự bỏ GPU đã trả tiền.
-2. **Phải có `fbgemm`.** Trên ARM không có nó, `bench_host.py` đo được **0,94× — chậm hơn
-   FP32** mà vẫn lệch điểm. Khởi động được trong tình trạng đó là kịch bản tệ nhất.
+2. **Phải có backend x86** — `x86` **hoặc** `fbgemm`. Trên ARM chỉ có qnnpack, và ở đó
+   `bench_host.py` đo được **0,94× — chậm hơn FP32** mà vẫn lệch điểm. Khởi động được
+   trong tình trạng đó là kịch bản tệ nhất.
+
+   Engine **không ép** `torch.backends.quantized.engine`. Từ torch 1.13 mặc định trên x86
+   là `x86`, một bộ điều phối chọn fbgemm hay onednn theo từng op — trên CPU có VNNI
+   thường nhanh hơn fbgemm thuần. Ép về `fbgemm` vừa là tự hạ cấp, vừa khiến
+   `bench_host.py` (chạy với mặc định) đo một backend khác với backend production dùng.
 3. **Đổi tại chỗ** (`inplace=True`). Mặc định `quantize_dynamic` deepcopy cả model: weights
    FP32 ~1,27 GB, bản sao đẩy đỉnh lên ~2,5 GB, vượt hạn mức 2G của container engine trong
    `docker-compose.prod.yml` → OOMKill lúc khởi động, với triệu chứng không hề chỉ về
