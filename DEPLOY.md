@@ -26,11 +26,42 @@ nhiều file, Compose **cộng dồn** `ports` chứ không thay thế, nên kh�
 
 ## Bước 1 — Chuẩn bị VPS
 
+Kiểm phiên bản trước — lệnh cài khác nhau:
+
 ```bash
-sudo apt update && sudo apt install -y docker.io docker-compose-v2 git && sudo usermod -aG docker $USER
+. /etc/os-release && echo "$PRETTY_NAME" && uname -m
 ```
 
-Đăng xuất rồi đăng nhập lại để nhóm `docker` có hiệu lực.
+**Ubuntu 22.04 trở lên:**
+
+```bash
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 git
+```
+
+**Ubuntu 20.04** — gói `docker-compose-v2` chưa có trong kho, phải dùng kho chính thức của
+Docker. Cài `docker.io` từ kho Ubuntu rồi thêm plugin compose sẽ **xung đột phiên bản**, nên
+cài trọn bộ từ một nguồn:
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh && sudo apt install -y git
+```
+
+Script đó cài `docker-ce` kèm `docker compose` v2. Kiểm:
+
+```bash
+docker --version && docker compose version
+```
+
+Không ra `Docker Compose version v2.x` thì dừng lại — phần còn lại của hướng dẫn dùng cú
+pháp `docker compose` (có dấu cách), không phải `docker-compose` cũ.
+
+Nếu đăng nhập bằng user thường chứ không phải root:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+Rồi đăng xuất, đăng nhập lại để nhóm `docker` có hiệu lực.
 
 Tường lửa — chỉ mở SSH và web:
 

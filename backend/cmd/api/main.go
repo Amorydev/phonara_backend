@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,7 +23,37 @@ import (
 	storeredis "github.com/phonara/backend/internal/store/redis"
 )
 
+// healthProbe tự gọi /health rồi thoát 0/1. Dùng làm HEALTHCHECK của Docker.
+//
+// Image chạy là `distroless/static`: KHÔNG có shell, không có wget, không có curl — chỉ
+// đúng binary này. Healthcheck cũ khai `["CMD","wget",...]` nên chưa bao giờ chạy được, chỉ
+// báo `executable file not found` và container vĩnh viễn `unhealthy`.
+//
+// Hậu quả không dừng ở chỗ hiển thị sai: bất kỳ dịch vụ nào khai
+// `depends_on: condition: service_healthy` với api sẽ chờ mãi không bao giờ khởi động.
+//
+// Cách sửa cho ảnh distroless là để chính binary tự kiểm — không thêm được công cụ nào vào
+// ảnh mà vẫn giữ được lợi ích của distroless.
+func healthProbe() {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://127.0.0.1:8080/health")
+	if err != nil {
+		os.Exit(1)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	if resp.StatusCode != http.StatusOK {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
 func main() {
+	// Chạy trước khi nạp config: healthcheck không được phụ thuộc biến môi trường, nếu
+	// không một cấu hình thiếu sẽ làm container báo unhealthy vì lý do sai.
+	if len(os.Args) > 1 && os.Args[1] == "--health" {
+		healthProbe()
+	}
+
 	// Structured logging (text in dev, JSON in prod)
 	cfg, err := config.Load()
 	if err != nil {
