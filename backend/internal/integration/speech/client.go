@@ -26,12 +26,13 @@ type Client struct {
 
 // NewClient tạo client với timeout.
 //
-// Timeout phải lớn hơn thời gian inference chậm nhất chấp nhận được, nhưng đủ nhỏ để
-// worker không treo khi engine chết. Inference đo được ~0,6–1,9 s cho câu 2,4 s; 30 s
-// cho biên độ rộng kể cả khi engine đang xếp hàng.
+// Timeout phải lớn hơn thời gian inference lạnh chậm nhất chấp nhận được, nhưng đủ nhỏ để
+// worker không treo khi engine chết. Production đã đo một forward lạnh 31,9 s cho audio
+// 8,5 s: timeout 30 s làm client bỏ response, trong khi PyTorch vẫn chạy và Asynq retry
+// cùng job. Mặc định hai phút bao phủ cả audio tối đa 30 s ở RTF lạnh đã đo.
 func NewClient(baseURL string, timeout time.Duration) *Client {
 	if timeout <= 0 {
-		timeout = 30 * time.Second
+		timeout = 2 * time.Minute
 	}
 	return &Client{
 		baseURL: baseURL,

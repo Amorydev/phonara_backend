@@ -92,7 +92,8 @@ func handleAssessmentRun(
 
 		if _, err := db.Exec(ctx,
 			`UPDATE assessment_jobs
-			    SET status = $1, started_at = now(), attempts = attempts + 1
+			    SET status = $1, started_at = COALESCE(started_at, now()),
+			        attempts = attempts + 1
 			  WHERE id = $2`,
 			service.JobProcessing, job.id,
 		); err != nil {

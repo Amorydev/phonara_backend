@@ -28,6 +28,11 @@ const (
 // TypeAssessmentRun là task type asynq cho việc chấm.
 const TypeAssessmentRun = "assessment:run"
 
+// assessmentTaskTimeoutMargin dành cho tải audio, ghi DB và cleanup ngoài lời gọi
+// pronunciation-engine. Task timeout phải luôn dài hơn HTTP timeout; nếu ngược lại Asynq
+// hủy handler trước trong khi PyTorch vẫn tiếp tục chạy ở container engine.
+const assessmentTaskTimeoutMargin = 30 * time.Second
+
 // AssessmentJobPayload là payload task.
 type AssessmentJobPayload struct {
 	JobID string `json:"job_id"`
@@ -65,13 +70,26 @@ type AssessmentJobService struct {
 	store   storage.Store
 	enqueue *asynq.Client
 	gate    *PracticeGate
+	// engineTimeout phải khớp timeout của speech.Client trong worker. API dùng nó để
+	// đặt deadline task dài hơn lời gọi engine thay vì duy trì hai con số độc lập.
+	engineTimeout time.Duration
 }
 
 // NewAssessmentJobService tạo service.
 func NewAssessmentJobService(
-	db *pgxpool.Pool, store storage.Store, enqueue *asynq.Client, gate *PracticeGate,
+	db *pgxpool.Pool,
+	store storage.Store,
+	enqueue *asynq.Client,
+	gate *PracticeGate,
+	engineTimeout time.Duration,
 ) *AssessmentJobService {
-	return &AssessmentJobService{db: db, store: store, enqueue: enqueue, gate: gate}
+	return &AssessmentJobService{
+		db: db, store: store, enqueue: enqueue, gate: gate, engineTimeout: engineTimeout,
+	}
+}
+
+func assessmentTaskTimeout(engineTimeout time.Duration) time.Duration {
+	return engineTimeout + assessmentTaskTimeoutMargin
 }
 
 // Create lưu audio, tạo job, đẩy vào hàng đợi.
@@ -159,7 +177,7 @@ func (s *AssessmentJobService) Create(
 	}
 	task := asynq.NewTask(TypeAssessmentRun, payload, asynq.Queue("critical"))
 	if _, err := s.enqueue.EnqueueContext(ctx, task,
-		asynq.MaxRetry(3), asynq.Timeout(60*time.Second),
+		asynq.MaxRetry(3), asynq.Timeout(assessmentTaskTimeout(s.engineTimeout)),
 	); err != nil {
 		cleanupErr := s.cleanupUnqueuedJob(ctx, jobID, audioRef)
 		refundQuota()

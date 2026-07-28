@@ -22,6 +22,7 @@ func TestConfigValidate(t *testing.T) {
 				AccessTTL:     15 * time.Minute,
 				RefreshTTL:    7 * 24 * time.Hour,
 			},
+			Engine: EngineConfig{Timeout: 2 * time.Minute},
 		}
 	}
 
@@ -51,6 +52,12 @@ func TestConfigValidate(t *testing.T) {
 			name: "invalid port",
 			mutate: func(cfg *Config) {
 				cfg.Server.Port = 70000
+			},
+		},
+		{
+			name: "non-positive pronunciation engine timeout",
+			mutate: func(cfg *Config) {
+				cfg.Engine.Timeout = 0
 			},
 		},
 	}

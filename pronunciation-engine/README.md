@@ -95,6 +95,32 @@ Bão hoà sau 2–4 luồng. Máy dev **một luồng** vẫn là 1.282 ms trong
 **Hệ quả khi chọn máy:** mua thêm vCPU trên cùng dòng CPU gần như vô ích (2→4 luồng chỉ
 1,16×). Cái cần là **tốc độ mỗi nhân**, không phải số nhân.
 
+### ⚠️ Đính chính (2026-07-28) — con số VPS ở trên KHÔNG hợp lệ
+
+Kết luận "chậm hơn 9–14 lần mỗi nhân, đây là CPU chậm thật" **không đứng vững**. Đo lại
+trên chính máy đó, lúc máy rỗi:
+
+| | |
+|---|---|
+| CPU | Intel Xeon Silver 4216 @ 2,10 GHz, 2 vCPU — Cascade Lake |
+| Tập lệnh | `avx512f`, `avx512bw`, `avx512dq`, `avx512vl`, **`avx512_vnni`** |
+| Swap | **0 B**, `si/so = 0`, `pgmajfault` +1 trong 10 giây → không hề paging |
+| CPU steal | **`st = 0`** ở mọi mẫu `vmstat` → không bị hàng xóm ăn CPU |
+
+Một khối AVX-512 FMA mỗi nhân cho khoảng 70–90 GFLOPS thực dụng; forward wav2vec2-large
+cho câu 5 giây tốn cỡ 180–200 GFLOP, tức **~2,3–2,5 s là đúng năng lực phần cứng**.
+
+Log production xác nhận: trong một phiên, cùng engine, thời gian forward giảm đơn điệu
+17,1 → 14,7 → 12,9 → 10,2 → 9,1 → 8,5 → 5,1 → **3,7 s**, và câu **dài nhất** (27 phoneme)
+lại **nhanh nhất**. Thời gian không tương quan với độ dài đầu vào ⇒ biến số là trạng thái
+máy, không phải khối lượng tính toán. Cửa sổ đo cũ nằm trong 20 phút ngay sau `docker
+compose up`, khi deploy còn đang chiếm cả hai nhân.
+
+**Mức nền thật gần 3–4 s cho một câu, không phải 11–17 s.** Đừng dùng bảng phía trên để
+quyết định đổi máy — hãy chạy `bench/bench_host.py` lúc máy rỗi. Và `avx512_vnni` có mặt
+nghĩa là INT8 (mục 2 dưới đây) chạy trên tập lệnh nhân-cộng chuyên dụng, tức đây gần như
+là trường hợp tốt nhất cho lượng tử hoá chứ không phải canh bạc.
+
 | | |
 |---|---|
 | RAM | **451 MiB** — thấp hơn nhiều so với ước tính 1,2 GB trong plan |
@@ -108,24 +134,52 @@ là ràng buộc thật.
 | # | Cách | Ước tính | Công sức | Rủi ro |
 |---|---|---|---|---|
 | 1 | `PE_TORCH_THREADS=2`, `PE_MAX_CONCURRENT_INFERENCE=1` | **~1,4×** *(đã đo)* | vài phút | mất chạy song song |
-| 2 | Lượng tử hoá động INT8 | ~2–3× *(ước)* | nửa ngày | **phải đo lại độ chính xác** |
+| 2 | Lượng tử hoá động INT8 — `PE_QUANTIZE=int8` | ~2–3× *(ước)* | **đã dựng** | **phải đo lại độ chính xác** |
 | 3 | ONNX Runtime | ~1,5–2× *(ước)* | 1–2 ngày | thêm một trục version (§8) |
 | 4 | Cắt khoảng lặng đầu/cuối | tỉ lệ thuận độ dài | vài giờ | ít |
-| 5 | **VPS có CPU nhanh hơn mỗi nhân** | **9–14×** *(suy từ đo)* | 0 | tiền |
+| 5 | ~~VPS có CPU nhanh hơn mỗi nhân~~ | — | 0 | **rút lại, xem đính chính ở trên** |
 
-Chỉ mục 1 và 5 có cơ sở đo đạc. Mục 2–3 là ước lượng từ tài liệu chung về suy luận
-transformer trên CPU, **chưa thử trên engine này**.
-
-**Mục 1 làm trước** vì miễn phí — nhưng chỉ được ~1,4×, không cứu được điều kiện 3.
+Mục 5 dựa trên phép đo đã bị bác bỏ. Mục 1 có cơ sở đo đạc; mục 2–3 là ước lượng từ tài
+liệu chung, **chưa thử trên engine này**.
 
 **Mục 2 là đòn bẩy kỹ thuật lớn nhất**, và điểm mạnh là **đo được**: chạy lại
 `eval/l2arctic.py` sau khi lượng tử hoá rồi so AUC với **0,8314** hiện tại. Mất chính xác
 bao nhiêu sẽ là con số, không phải phỏng đoán — đây đúng là thứ bộ đo ở §6.1.1 sinh ra để
 trả lời.
 
-**Trần của phần mềm:** ngay cả khi mục 1 + 2 + 3 đạt hết mức lý thuyết (~1,4 × 3 × 2 ≈ 8×),
-11,7 s xuống còn ~1,5 s cho câu 7 giây — vừa đủ, nhưng chưa tính dao động do tranh chấp CPU
-và phải chấp nhận rủi ro mất chính xác. **Phần cứng vẫn là ràng buộc chính.**
+### `PE_QUANTIZE` — lượng tử hoá động INT8
+
+```bash
+docker run --rm -v "$PWD":/w -w /w phonara-engine python bench/bench_host.py 2   # đo trước
+```
+
+| | |
+|---|---|
+| `off` *(mặc định)* | FP32, không đổi gì |
+| `int8` | INT8 động trên `nn.Linear` của khối transformer |
+
+**Mặc định TẮT vì nó đổi điểm số, không phải vì nó chậm.** Bật lên là đổi một trục version
+(§8): `model_version` mang hậu tố `+int8`, để kết quả trước và sau không bị trộn và để
+calibration fit trên FP32 không âm thầm được dùng cho INT8. Engine cũng log cảnh báo đúng
+điều đó mỗi lần khởi động ở chế độ này.
+
+Ba điều kiện, mỗi điều fail fast **lúc khởi động** chứ không phải lúc chấm:
+
+1. **Chỉ CPU.** `PE_QUANTIZE=int8` cùng `PE_DEVICE=cuda` bị từ chối — kernel INT8 động là
+   fbgemm/qnnpack, đều của CPU, bật cùng GPU là tự bỏ GPU đã trả tiền.
+2. **Phải có `fbgemm`.** Trên ARM không có nó, `bench_host.py` đo được **0,94× — chậm hơn
+   FP32** mà vẫn lệch điểm. Khởi động được trong tình trạng đó là kịch bản tệ nhất.
+3. **Đổi tại chỗ** (`inplace=True`). Mặc định `quantize_dynamic` deepcopy cả model: weights
+   FP32 ~1,27 GB, bản sao đẩy đỉnh lên ~2,5 GB, vượt hạn mức 2G của container engine trong
+   `docker-compose.prod.yml` → OOMKill lúc khởi động, với triệu chứng không hề chỉ về
+   nguyên nhân.
+
+Bộ trích đặc trưng tích chập **không** được lượng tử hoá (`quantize_dynamic` không đụng
+`nn.Conv1d`), nên mọi ước lượng tốc độ chỉ tính riêng khối transformer.
+
+Quy trình bật ở production: `bench_host.py` → nếu ≥1,8× thì `eval/l2arctic.py` so AUC với
+0,8314 → đặt `PE_QUANTIZE=int8` trong `.env` → dựng lại. Kiểm chứng đã bật đúng bằng
+`model_version` trong `/health` (phải có `+int8`), chứ không bằng việc container lên được.
 
 ## Chạy trên GPU
 

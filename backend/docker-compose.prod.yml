@@ -122,6 +122,16 @@ services:
       # MỘT luồng cho model 316 triệu tham số. Máy nhiều core hơn thì chỉnh qua .env.
       PE_MAX_CONCURRENT_INFERENCE: "${PE_MAX_CONCURRENT_INFERENCE:-1}"
       PE_TORCH_THREADS: "${PE_TORCH_THREADS:-2}"
+      # off | int8 — lượng tử hoá động INT8 các lớp Linear của transformer.
+      #
+      # MẶC ĐỊNH TẮT VÌ NÓ ĐỔI ĐIỂM SỐ, không phải vì nó chậm. Bật lên là đổi một trục
+      # version (§8): `model_version` sẽ mang hậu tố `+int8` để kết quả trước và sau không
+      # bị trộn. Trước khi bật thật phải chạy lại `eval/l2arctic.py` và so AUC với 0,8314.
+      #
+      # CPU máy này (Xeon Silver 4216) có `avx512_vnni` — tập lệnh nhân-cộng INT8 mà fbgemm
+      # dùng thẳng, tức gần như trường hợp tốt nhất. Vẫn phải đo bằng `bench/bench_host.py`
+      # trên chính máy đích chứ không suy từ tài liệu.
+      PE_QUANTIZE: "${PE_QUANTIZE:-off}"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
       interval: 15s

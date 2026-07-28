@@ -83,6 +83,50 @@ class Engine:
         return out
 
 
+def _quantize_int8(model: Wav2Vec2ForCTC, device: str) -> Wav2Vec2ForCTC:
+    """Lượng tử hoá động INT8 trên các lớp `nn.Linear`.
+
+    Chỉ `nn.Linear` bị đổi. Bộ trích đặc trưng tích chập và positional conv giữ nguyên FP32
+    — `quantize_dynamic` không đụng tới `nn.Conv1d`, nên phần tăng tốc chỉ đến từ khối
+    transformer. Đó cũng là nơi có gần hết tham số.
+
+    BA ĐIỀU BẮT BUỘC, mỗi điều đều fail fast:
+
+    1. **Chỉ CPU.** Trên CUDA thì đường INT8 động này vô nghĩa (kernel là fbgemm/qnnpack,
+       đều của CPU) và sẽ kéo forward về CPU trong im lặng.
+
+    2. **Phải có fbgemm.** Trên máy ARM không có nó, `bench_host.py` đo được 0,94× — tức
+       CHẬM HƠN FP32, mà vẫn phải trả giá bằng sai lệch điểm số. Khởi động được trong tình
+       trạng đó là kịch bản tệ nhất: mất chính xác, không được gì.
+
+    3. **`inplace=True`.** Mặc định `quantize_dynamic` deepcopy cả model trước khi đổi.
+       Weights FP32 là ~1,27 GB, bản sao đẩy đỉnh lên ~2,5 GB — vượt hạn mức 2G của
+       container engine trong `docker-compose.prod.yml` và bị OOMKill ngay lúc khởi động.
+       Đổi tại chỗ thì đỉnh không bao giờ vượt mức FP32 đã nạp.
+    """
+    if device != "cpu":
+        raise RuntimeError(
+            f"PE_QUANTIZE=int8 chỉ dùng được với CPU, nhưng thiết bị là {device!r}. "
+            "INT8 động chạy bằng kernel CPU (fbgemm); bật cùng GPU là tự bỏ GPU."
+        )
+
+    supported = torch.backends.quantized.supported_engines
+    if "fbgemm" not in supported:
+        raise RuntimeError(
+            "PE_QUANTIZE=int8 nhưng máy này không có fbgemm "
+            f"(chỉ có: {', '.join(supported)}). fbgemm là backend x86; trên ARM đo được "
+            "0,94× — chậm hơn FP32 mà vẫn lệch điểm. Để PE_QUANTIZE=off."
+        )
+    torch.backends.quantized.engine = "fbgemm"
+
+    t0 = time.perf_counter()
+    quantized = torch.ao.quantization.quantize_dynamic(
+        model, {torch.nn.Linear}, dtype=torch.qint8, inplace=True
+    )
+    log.info("lượng tử hoá INT8 xong trong %.1fs", time.perf_counter() - t0)
+    return quantized
+
+
 _engine: Engine | None = None
 
 
@@ -125,6 +169,12 @@ def load() -> Engine:
     model.eval()
     model.to(device)
 
+    # Lượng tử hoá SAU `.eval()` và `.to()`: quan sát viên trong lớp quantized ghi lại
+    # thiết bị và chế độ tại thời điểm đổi, nên đảo thứ tự sẽ đóng băng nhầm trạng thái.
+    quantize = settings.resolved_quantize()
+    if quantize == "int8":
+        model = _quantize_int8(model, device)
+
     vocab = tokenizer.get_vocab()
     table = confusion.load(settings.confusion_path, vocab)
     calibrator = calibrate.load(settings.calibration_path)
@@ -147,19 +197,33 @@ def load() -> Engine:
         merge_rules=rules,
         blank_id=model.config.pad_token_id,
         id_to_symbol={i: s for s, i in vocab.items()},
-        model_version=f"xlsr53-espeak@{settings.model_revision}",
+        # Lượng tử hoá LÀ một trục version (§8): cùng weights, cùng thuật toán, nhưng điểm
+        # số khác. Không gắn vào `model_version` thì hai lần chấm không so được với nhau và
+        # calibration fit trên bản FP32 sẽ âm thầm được dùng cho bản INT8.
+        model_version=(
+            f"xlsr53-espeak@{settings.model_revision}"
+            + ("+int8" if quantize == "int8" else "")
+        ),
         g2p_version=_espeak_version(),
         device=device,
     )
 
     log.info(
-        "engine nạp xong trong %.1fs | vocab=%d | confusion=%s | calibration=%s | merge=%s",
+        "engine nạp xong trong %.1fs | vocab=%d | quantize=%s | confusion=%s | "
+        "calibration=%s | merge=%s",
         time.perf_counter() - t0,
         len(vocab),
+        quantize,
         table.version,
         calibrator.version,
         rules.version,
     )
+    if quantize == "int8":
+        log.warning(
+            "đang chạy INT8 nhưng calibration %s được fit trên bản FP32 — chạy lại "
+            "eval/l2arctic.py và so AUC với 0,8314 trước khi tin vào điểm số",
+            calibrator.version,
+        )
     if "PLACEHOLDER" in calibrator.version:
         log.warning(
             "calibration đang dùng bản PLACEHOLDER chưa fit trên dữ liệu nào — "

@@ -193,7 +193,10 @@ func Load() (*Config, error) {
 	v.SetDefault("MAX_ASSESSMENT_QUEUE_DEPTH", 50)
 	v.SetDefault("COST_CIRCUIT_BREAKER_THRESHOLD", 50.0)
 	v.SetDefault("PRONUNCIATION_ENGINE_URL", "http://pronunciation-engine:8000")
-	v.SetDefault("PRONUNCIATION_ENGINE_TIMEOUT", "30s")
+	// Cold inference trên CPU production đã đo được 31,9 s cho audio 8,5 s. Timeout
+	// 30 s làm Go bỏ response trong khi PyTorch vẫn chạy, rồi Asynq retry và đốt thêm
+	// một inference giống hệt. Hai phút còn bao phủ audio tối đa 30 s ở RTF lạnh đã đo.
+	v.SetDefault("PRONUNCIATION_ENGINE_TIMEOUT", "2m")
 	v.SetDefault("AUDIO_STORAGE_ROOT", "/var/lib/phonara/audio")
 
 	// Read from .env file if present
@@ -298,6 +301,9 @@ func (c *Config) Validate() error {
 	}
 	if c.JWT.AccessTTL <= 0 || c.JWT.RefreshTTL <= 0 {
 		return fmt.Errorf("JWT TTL values must be positive")
+	}
+	if c.Engine.Timeout <= 0 {
+		return fmt.Errorf("PRONUNCIATION_ENGINE_TIMEOUT must be positive")
 	}
 	if c.App.Env == "production" {
 		if len(c.Server.AllowedOrigins) == 0 {

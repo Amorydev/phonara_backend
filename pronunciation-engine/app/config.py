@@ -52,6 +52,11 @@ class Settings(BaseSettings):
         description="auto | cpu | cuda. `auto` dùng GPU nếu có, ngược lại CPU.",
     )
 
+    quantize: str = Field(
+        default="off",
+        description="off | int8. INT8 động trên nn.Linear — CHỈ CPU, cần fbgemm.",
+    )
+
     def resolved_torch_threads(self) -> int:
         if self.torch_threads > 0:
             return self.torch_threads
@@ -85,6 +90,19 @@ class Settings(BaseSettings):
         if self.device == "auto":
             return "cuda" if torch.cuda.is_available() else "cpu"
         raise ValueError(f"PE_DEVICE không hợp lệ: {self.device!r} (auto | cpu | cuda)")
+
+    def resolved_quantize(self) -> str:
+        """Chế độ lượng tử hoá, đã kiểm giá trị.
+
+        Ném lỗi thay vì im lặng rơi về `off` khi gõ sai: một biến môi trường sai chính tả
+        mà vẫn khởi động được nghĩa là bạn tưởng đang chạy INT8 trong khi thực tế là FP32,
+        và sẽ đi tìm nguyên nhân "vì sao không nhanh lên" ở nhầm chỗ.
+        """
+        if self.quantize not in ("off", "int8"):
+            raise ValueError(
+                f"PE_QUANTIZE không hợp lệ: {self.quantize!r} (off | int8)"
+            )
+        return self.quantize
 
 
 settings = Settings()

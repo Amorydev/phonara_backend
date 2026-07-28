@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -26,10 +27,14 @@ type AssessmentJobHandler struct {
 
 // NewAssessmentJobHandler tạo handler.
 func NewAssessmentJobHandler(
-	db *pgxpool.Pool, store storage.Store, enqueue *asynq.Client, gate *service.PracticeGate,
+	db *pgxpool.Pool,
+	store storage.Store,
+	enqueue *asynq.Client,
+	gate *service.PracticeGate,
+	engineTimeout time.Duration,
 ) *AssessmentJobHandler {
 	return &AssessmentJobHandler{
-		svc: service.NewAssessmentJobService(db, store, enqueue, gate),
+		svc: service.NewAssessmentJobService(db, store, enqueue, gate, engineTimeout),
 	}
 }
 

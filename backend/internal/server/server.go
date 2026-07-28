@@ -156,7 +156,13 @@ func (s *Server) registerRoutes() {
 	assessments.GET("/pre-assessment", assessmentHandler.GetPreAssessment)
 
 	// Chấm phát âm bất đồng bộ: upload → job → poll (§ đảo chiều luồng audio)
-	assessmentJobHandler := handler.NewAssessmentJobHandler(s.db, s.audioStore, s.enqueue, s.gate)
+	assessmentJobHandler := handler.NewAssessmentJobHandler(
+		s.db,
+		s.audioStore,
+		s.enqueue,
+		s.gate,
+		s.cfg.Engine.Timeout,
+	)
 	assessments.POST("", assessmentJobHandler.Create)
 	assessments.GET("/:id", assessmentJobHandler.Get)
 
