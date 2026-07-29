@@ -141,6 +141,28 @@ type RateLimitConfig struct {
 type EngineConfig struct {
 	URL     string        `mapstructure:"PRONUNCIATION_ENGINE_URL"`
 	Timeout time.Duration `mapstructure:"PRONUNCIATION_ENGINE_TIMEOUT"`
+
+	// Concurrency PHẢI khớp `PE_MAX_CONCURRENT_INFERENCE` của engine.
+	//
+	// Engine chỉ nhận đúng bấy nhiêu inference cùng lúc; quá thì trả 503
+	// `model_overloaded`. Mã đó retryable nên job rơi vào hàng đợi retry của Asynq — và
+	// lần retry ĐẦU TIÊN của Asynq chờ 15–44 giây (`n⁴ + 15 + rand(30)`, xem
+	// `DefaultRetryDelayFunc`).
+	//
+	// Đặt cao hơn engine nghĩa là: worker bắn N job, engine nhận 1, N−1 job còn lại biến
+	// một lượt chấm 4,5 giây thành 20–50 giây. Triệu chứng trông y hệt "engine chậm" nên
+	// rất khó lần ra từ log.
+	//
+	// Worker vì thế tự giữ semaphore đúng con số này: job xếp hàng TRONG worker (rẻ, vài
+	// micro giây) thay vì bị engine đá ra rồi ngủ trong Redis.
+	Concurrency int `mapstructure:"PRONUNCIATION_ENGINE_CONCURRENCY"`
+
+	// AcquireTimeout chặn việc mọi goroutine của Asynq cùng nằm chờ semaphore.
+	//
+	// Asynq dùng CHUNG một pool goroutine cho mọi loại task. Tất cả kẹt ở hàng chấm phát
+	// âm thì TTS, thông báo, mọi thứ khác đều đứng. Quá hạn này thì trả lỗi retryable và
+	// nhường chỗ — với RetryDelayFunc riêng cho quá tải, job quay lại sau vài giây.
+	AcquireTimeout time.Duration `mapstructure:"PRONUNCIATION_ENGINE_ACQUIRE_TIMEOUT"`
 }
 
 // StorageConfig cấu hình nơi lưu audio người dùng ghi.
@@ -197,6 +219,10 @@ func Load() (*Config, error) {
 	// 30 s làm Go bỏ response trong khi PyTorch vẫn chạy, rồi Asynq retry và đốt thêm
 	// một inference giống hệt. Hai phút còn bao phủ audio tối đa 30 s ở RTF lạnh đã đo.
 	v.SetDefault("PRONUNCIATION_ENGINE_TIMEOUT", "2m")
+	// Khớp `PE_MAX_CONCURRENT_INFERENCE` mặc định của engine trong compose production.
+	// Đổi một bên mà quên bên kia là quay lại đúng cơn bão 503 — xem EngineConfig.
+	v.SetDefault("PRONUNCIATION_ENGINE_CONCURRENCY", 1)
+	v.SetDefault("PRONUNCIATION_ENGINE_ACQUIRE_TIMEOUT", "45s")
 	v.SetDefault("AUDIO_STORAGE_ROOT", "/var/lib/phonara/audio")
 
 	// Read from .env file if present
@@ -255,6 +281,7 @@ func Load() (*Config, error) {
 	cfg.RateLimit.MaxQueueDepth = v.GetInt("MAX_ASSESSMENT_QUEUE_DEPTH")
 	cfg.Cost.CircuitBreakerThreshold = v.GetFloat64("COST_CIRCUIT_BREAKER_THRESHOLD")
 	cfg.Engine.URL = v.GetString("PRONUNCIATION_ENGINE_URL")
+	cfg.Engine.Concurrency = v.GetInt("PRONUNCIATION_ENGINE_CONCURRENCY")
 	cfg.Storage.LocalRoot = v.GetString("AUDIO_STORAGE_ROOT")
 	cfg.Storage.PublicBaseURL = v.GetString("PUBLIC_BASE_URL")
 
@@ -268,6 +295,7 @@ func Load() (*Config, error) {
 		{"JWT_REFRESH_TTL", &cfg.JWT.RefreshTTL},
 		{"AZURE_SPEECH_TOKEN_TTL", &cfg.Azure.SpeechTokenTTL},
 		{"PRONUNCIATION_ENGINE_TIMEOUT", &cfg.Engine.Timeout},
+		{"PRONUNCIATION_ENGINE_ACQUIRE_TIMEOUT", &cfg.Engine.AcquireTimeout},
 	}
 	for _, item := range durations {
 		duration, err := parseDuration(v.GetString(item.key))
@@ -304,6 +332,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Engine.Timeout <= 0 {
 		return fmt.Errorf("PRONUNCIATION_ENGINE_TIMEOUT must be positive")
+	}
+	if c.Engine.Concurrency < 1 {
+		return fmt.Errorf("PRONUNCIATION_ENGINE_CONCURRENCY must be at least 1")
+	}
+	if c.Engine.AcquireTimeout <= 0 {
+		return fmt.Errorf("PRONUNCIATION_ENGINE_ACQUIRE_TIMEOUT must be positive")
 	}
 	if c.App.Env == "production" {
 		if len(c.Server.AllowedOrigins) == 0 {

@@ -157,6 +157,10 @@ services:
       S3_ENDPOINT: http://minio:9000
       STORAGE_DRIVER: s3
       PRONUNCIATION_ENGINE_URL: http://pronunciation-engine:8000
+      # Lấy từ CÙNG MỘT biến với `PE_MAX_CONCURRENT_INFERENCE` của engine ở trên, để hai
+      # con số không thể lệch nhau. Lệch là hỏng âm thầm — xem chú thích trong
+      # docker-compose.prod.yml.
+      PRONUNCIATION_ENGINE_CONCURRENCY: "${PE_MAX_CONCURRENT_INFERENCE:-1}"
     depends_on:
       postgres:
         condition: service_healthy

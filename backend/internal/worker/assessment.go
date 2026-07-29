@@ -69,6 +69,7 @@ func retryExhausted(retried, maxRetry int) bool {
 // không tự tốt lên, và mỗi lần thử lại đốt thêm một lần inference.
 func handleAssessmentRun(
 	db *pgxpool.Pool, store storage.Store, engine *speech.Client, gate *service.PracticeGate,
+	engineGate *EngineGate,
 ) asynq.HandlerFunc {
 	return func(ctx context.Context, t *asynq.Task) error {
 		var p service.AssessmentJobPayload
@@ -107,11 +108,36 @@ func handleAssessmentRun(
 			return fmt.Errorf("đọc audio %s: %w: %w", job.audioRef, err, asynq.SkipRetry)
 		}
 
-		result, err := engine.Assess(ctx, speech.AssessInput{
-			Audio:         audio,
-			ReferenceText: job.referenceText,
-			RequestID:     job.id.String(),
-		})
+		// Giữ suất inference SAU khi đã tải audio: tải audio không cần suất, và ôm suất
+		// trong lúc chờ mạng S3 là lãng phí đúng tài nguyên khan hiếm nhất trong hệ thống.
+		var result *domain.NormalizedAssessmentResult
+		err = func() error {
+			if acquireErr := engineGate.Acquire(ctx); acquireErr != nil {
+				return acquireErr
+			}
+			// defer chứ không gọi thẳng: Asynq bắt panic trong handler, nên một suất rò rỉ
+			// sẽ làm giảm vĩnh viễn sức chứa mà không ai thấy.
+			defer engineGate.Release()
+
+			var callErr error
+			result, callErr = engine.Assess(ctx, speech.AssessInput{
+				Audio:         audio,
+				ReferenceText: job.referenceText,
+				RequestID:     job.id.String(),
+			})
+			return callErr
+		}()
+
+		if errors.Is(err, ErrEngineBusy) || errors.Is(err, context.Canceled) ||
+			errors.Is(err, context.DeadlineExceeded) {
+			// Chưa tới lượt, hoặc worker đang tắt. KHÔNG markFailed: job vẫn hợp lệ,
+			// chưa tốn lượt inference nào, và client vẫn đang poll. RetryDelayFunc ở
+			// cmd/worker đưa nó quay lại sau vài giây.
+			slog.Warn("chưa giành được suất inference, sẽ thử lại",
+				"job_id", job.id, "err", err)
+			return fmt.Errorf("chờ suất inference: %w", err)
+		}
+
 		if err != nil {
 			var engErr *domain.EngineError
 			if errors.As(err, &engErr) && !engErr.Retryable {

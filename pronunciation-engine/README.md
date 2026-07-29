@@ -42,7 +42,7 @@ Bước 3 và 4 gần như miễn phí (3 ms mỗi bước); toàn bộ chi phí
 |---|---|---|
 | 1 | `/v1/assess` trả đúng contract §2.1 | ✅ |
 | 2 | Vocab G2P khớp vocab model | ✅ R1 |
-| 3 | p95 < 3 s cho câu 5 giây | ❌ **TRƯỢT trên VPS** — RTF 1,7–2,5, câu 5 giây mất 9–13 s. Đạt trên máy dev nhưng máy dev không phải phần cứng đích |
+| 3 | p95 < 3 s cho câu 5 giây | ❌ **TRƯỢT trên VPS** — FP32 RTF 1,51 → 7,6 s; INT8 RTF 0,78 → 3,9 s. Đạt trên máy dev nhưng máy dev không phải phần cứng đích |
 | 4 | Tái lập kết quả trên speechocean762 | ❌ **chưa làm** |
 
 **Chưa dùng được cho production.** `calibration.json` mang hậu tố `-PLACEHOLDER`: tham
@@ -95,10 +95,31 @@ Bão hoà sau 2–4 luồng. Máy dev **một luồng** vẫn là 1.282 ms trong
 **Hệ quả khi chọn máy:** mua thêm vCPU trên cùng dòng CPU gần như vô ích (2→4 luồng chỉ
 1,16×). Cái cần là **tốc độ mỗi nhân**, không phải số nhân.
 
-### ⚠️ Đính chính (2026-07-28) — con số VPS ở trên KHÔNG hợp lệ
+### Đo lại trên máy rỗi (2026-07-29) — kết luận ở trên ĐƯỢC XÁC NHẬN
 
-Kết luận "chậm hơn 9–14 lần mỗi nhân, đây là CPU chậm thật" **không đứng vững**. Đo lại
-trên chính máy đó, lúc máy rỗi:
+> **Ghi chú lịch sử.** Bản đính chính viết ngày 2026-07-28 tuyên bố con số VPS ở trên không
+> hợp lệ và gạch bỏ phương án đổi máy. **Bản đính chính đó SAI và đã bị rút.** Nó dựa trên
+> ước lượng lý thuyết từ thông số AVX-512 (70–90 GFLOPS thực dụng) chứ không dựa trên phép
+> đo; workload thật chỉ đạt ~25–30 GFLOPS. Phần khảo sát máy bên dưới vẫn giữ vì là dữ kiện
+> đo được và có ích — chỉ có kết luận rút ra từ nó là sai.
+
+`bench_host.py` chạy trên chính VPS lúc máy rỗi, cùng file 7 giây, 2 luồng:
+
+| | nhanh nhất | trung bình | RTF |
+|---|---|---|---|
+| FP32 | 9.740 ms | 10.581 ms | **1,51** |
+| INT8 | 4.961 ms | 5.480 ms | **0,78** |
+
+**FP32 RTF 1,51** so với 1,68 / 2,51 ghi ở trên. Số `11.730 ms` gốc chỉ lệch 11% — nó
+**đúng**, không phải nhiễu; chỉ riêng `17.561 ms` là ngoại lệ. Suy ra mỗi nhân: VPS một
+luồng ≈ 10.581 × 1,44 ≈ 15.200 ms, đối chiếu máy dev một luồng 1.282 ms → **11,9×**, nằm
+gọn trong khoảng 9–14× đã ghi. **Phần cứng vẫn là ràng buộc chính.**
+
+Điều kiện 3 của §3.6 (p95 < 3 s cho câu 5 giây) với FP32: 5 × 1,51 ≈ **7,6 s — vẫn trượt**.
+Với INT8: 5 × 0,78 ≈ **3,9 s — vẫn trượt**, nhưng đã trong tầm với nếu cộng thêm mục 4
+(cắt khoảng lặng).
+
+Khảo sát máy, giữ lại vì là dữ kiện:
 
 | | |
 |---|---|
@@ -107,19 +128,21 @@ trên chính máy đó, lúc máy rỗi:
 | Swap | **0 B**, `si/so = 0`, `pgmajfault` +1 trong 10 giây → không hề paging |
 | CPU steal | **`st = 0`** ở mọi mẫu `vmstat` → không bị hàng xóm ăn CPU |
 
-Một khối AVX-512 FMA mỗi nhân cho khoảng 70–90 GFLOPS thực dụng; forward wav2vec2-large
-cho câu 5 giây tốn cỡ 180–200 GFLOP, tức **~2,3–2,5 s là đúng năng lực phần cứng**.
+Không swap và không steal nghĩa là **CPU chậm thật**, chứ không phải máy bị tranh chấp —
+đúng như kết luận gốc. Đừng suy tốc độ từ thông số tập lệnh: ước lượng "70–90 GFLOPS thực
+dụng" từ một khối AVX-512 FMA mỗi nhân lệch **~3 lần** so với đo đạc. Nghi phạm chính là
+"2 vCPU" thực chất là hai siêu luồng trên MỘT nhân vật lý (chung một khối AVX-512), cộng hạ
+xung AVX-512 và overhead eager mode. Kiểm bằng `lscpu -e` chứ đừng tin số `CPU(s)`.
 
-Log production xác nhận: trong một phiên, cùng engine, thời gian forward giảm đơn điệu
-17,1 → 14,7 → 12,9 → 10,2 → 9,1 → 8,5 → 5,1 → **3,7 s**, và câu **dài nhất** (27 phoneme)
-lại **nhanh nhất**. Thời gian không tương quan với độ dài đầu vào ⇒ biến số là trạng thái
-máy, không phải khối lượng tính toán. Cửa sổ đo cũ nằm trong 20 phút ngay sau `docker
-compose up`, khi deploy còn đang chiếm cả hai nhân.
+`avx512_vnni` **có** giúp — nó là lý do INT8 đạt 1,93× ở đây. Nhưng nó tăng tốc phần INT8,
+không cứu được tốc độ nền FP32.
 
-**Mức nền thật gần 3–4 s cho một câu, không phải 11–17 s.** Đừng dùng bảng phía trên để
-quyết định đổi máy — hãy chạy `bench/bench_host.py` lúc máy rỗi. Và `avx512_vnni` có mặt
-nghĩa là INT8 (mục 2 dưới đây) chạy trên tập lệnh nhân-cộng chuyên dụng, tức đây gần như
-là trường hợp tốt nhất cho lượng tử hoá chứ không phải canh bạc.
+**Còn một hiện tượng riêng chưa giải thích được.** Log production một phiên, cùng engine:
+17,1 → 14,7 → 12,9 → 10,2 → 9,1 → 8,5 → 5,1 → **3,7 s**, trong đó câu **dài nhất** (27
+phoneme) lại **nhanh nhất**. Với RTF 1,5 ổn định thì một câu ~1,5 giây phải mất ~2,3 s, chứ
+không phải 17,1 s. Cửa sổ đó nằm trong 20 phút ngay sau `docker compose up`, nên deploy
+chiếm CPU là lời giải thích khả dĩ — nhưng **chưa được kiểm chứng**. Nếu hiện tượng này lặp
+lại lúc máy đã ổn định thì nó là một vấn đề riêng, không liên quan tới tốc độ nền.
 
 | | |
 |---|---|
@@ -134,13 +157,13 @@ là ràng buộc thật.
 | # | Cách | Ước tính | Công sức | Rủi ro |
 |---|---|---|---|---|
 | 1 | `PE_TORCH_THREADS=2`, `PE_MAX_CONCURRENT_INFERENCE=1` | **~1,4×** *(đã đo)* | vài phút | mất chạy song song |
-| 2 | Lượng tử hoá động INT8 — `PE_QUANTIZE=int8` | ~2–3× *(ước)* | **đã dựng** | **phải đo lại độ chính xác** |
+| 2 | Lượng tử hoá động INT8 — `PE_QUANTIZE=int8` | **1,93×** *(đã đo trên VPS)* | **đã dựng** | **phải đo lại độ chính xác** |
 | 3 | ONNX Runtime | ~1,5–2× *(ước)* | 1–2 ngày | thêm một trục version (§8) |
 | 4 | Cắt khoảng lặng đầu/cuối | tỉ lệ thuận độ dài | vài giờ | ít |
-| 5 | ~~VPS có CPU nhanh hơn mỗi nhân~~ | — | 0 | **rút lại, xem đính chính ở trên** |
+| 5 | **VPS có CPU nhanh hơn mỗi nhân** | **9–14×** *(suy từ đo, đã xác nhận lại)* | 0 | tiền |
 
-Mục 5 dựa trên phép đo đã bị bác bỏ. Mục 1 có cơ sở đo đạc; mục 2–3 là ước lượng từ tài
-liệu chung, **chưa thử trên engine này**.
+Mục 1, 2 và 5 có cơ sở đo đạc; mục 3 là ước lượng từ tài liệu chung, **chưa thử trên engine
+này**. Mục 2 nay đã đo trên chính phần cứng đích: **1,93×**, đưa RTF từ 1,51 xuống 0,78.
 
 **Mục 2 là đòn bẩy kỹ thuật lớn nhất**, và điểm mạnh là **đo được**: chạy lại
 `eval/l2arctic.py` sau khi lượng tử hoá rồi so AUC với **0,8314** hiện tại. Mất chính xác

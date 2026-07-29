@@ -194,6 +194,13 @@ services:
       S3_ENDPOINT: http://minio:9000
       STORAGE_DRIVER: s3
       PRONUNCIATION_ENGINE_URL: http://pronunciation-engine:8000
+      # Lấy từ CÙNG MỘT biến với `PE_MAX_CONCURRENT_INFERENCE` của engine ở trên, để hai
+      # con số không thể lệch nhau.
+      #
+      # Lệch là hỏng âm thầm: worker bắn nhiều job hơn engine nhận, engine trả 503
+      # `model_overloaded`, và Asynq cho job ngủ 15–44 giây trước lần retry đầu. Một lượt
+      # chấm 4,5 giây biến thành gần một phút, còn log chỉ nói "engine chậm".
+      PRONUNCIATION_ENGINE_CONCURRENCY: "${PE_MAX_CONCURRENT_INFERENCE:-1}"
     depends_on:
       postgres:
         condition: service_healthy

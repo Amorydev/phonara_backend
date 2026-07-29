@@ -43,8 +43,9 @@ func RegisterHandlers(
 	ttsProvider tts.Provider,
 	enqueuer *asynq.Client,
 	gate *service.PracticeGate,
+	engineGate *EngineGate,
 ) {
-	mux.HandleFunc(TypeAssessmentRun, handleAssessmentRun(db, store, engine, gate))
+	mux.HandleFunc(TypeAssessmentRun, handleAssessmentRun(db, store, engine, gate, engineGate))
 	mux.HandleFunc(TypeErrorProfileRecompute, handleErrorProfileRecompute(db))
 	mux.HandleFunc(TypeTTSBatch, handleTTSBatch(db, store, ttsProvider, enqueuer))
 	mux.HandleFunc(TypeAccountDelete, handleAccountDelete(db))

@@ -22,7 +22,11 @@ func TestConfigValidate(t *testing.T) {
 				AccessTTL:     15 * time.Minute,
 				RefreshTTL:    7 * 24 * time.Hour,
 			},
-			Engine: EngineConfig{Timeout: 2 * time.Minute},
+			Engine: EngineConfig{
+				Timeout:        2 * time.Minute,
+				Concurrency:    1,
+				AcquireTimeout: 45 * time.Second,
+			},
 		}
 	}
 
@@ -58,6 +62,21 @@ func TestConfigValidate(t *testing.T) {
 			name: "non-positive pronunciation engine timeout",
 			mutate: func(cfg *Config) {
 				cfg.Engine.Timeout = 0
+			},
+		},
+		{
+			// 0 nghĩa là "không có suất nào" — worker sẽ chặn mọi job vĩnh viễn thay vì
+			// chấm. Hỏng to tiếng lúc khởi động dễ lần ra hơn nhiều so với một hàng đợi
+			// đứng im không rõ lý do.
+			name: "non-positive engine concurrency",
+			mutate: func(cfg *Config) {
+				cfg.Engine.Concurrency = 0
+			},
+		},
+		{
+			name: "non-positive engine acquire timeout",
+			mutate: func(cfg *Config) {
+				cfg.Engine.AcquireTimeout = 0
 			},
 		},
 	}

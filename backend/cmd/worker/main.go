@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hibiken/asynq"
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/phonara/backend/internal/config"
+	"github.com/phonara/backend/internal/domain"
 	"github.com/phonara/backend/internal/integration/speech"
 	"github.com/phonara/backend/internal/integration/storage"
 	"github.com/phonara/backend/internal/integration/tts"
@@ -18,6 +22,41 @@ import (
 	storedb "github.com/phonara/backend/internal/store/db"
 	"github.com/phonara/backend/internal/worker"
 )
+
+// backpressureRetryDelay tách "hệ thống đang bận" khỏi "job này hỏng".
+//
+// Mặc định của Asynq là `n⁴ + 15 + rand(30)` giây — lần retry ĐẦU TIÊN đã chờ 15–44 giây.
+// Con số đó hợp lý cho lỗi thật (API ngoài sập, DB mất kết nối): lùi lại thật xa, đừng dội
+// thêm vào thứ đang hỏng.
+//
+// Nhưng nó SAI hoàn toàn cho áp lực ngược. Engine chỉ chấm được một câu tại một thời điểm;
+// job thứ hai không hỏng gì cả, nó chỉ đến sớm vài giây. Bắt nó ngủ 15–44 giây biến một
+// lượt chấm 4,5 giây thành gần một phút, và người học ngồi nhìn màn hình chờ.
+//
+// Hai trường hợp được rút ngắn:
+//
+//	ErrEngineBusy          — worker tự chặn ở EngineGate (đường đi bình thường)
+//	EngErrModelOverloaded  — engine trả 503 vì đã có lượt khác chạy. Đường này chỉ xảy ra
+//	                         khi PRONUNCIATION_ENGINE_CONCURRENCY đặt CAO HƠN
+//	                         PE_MAX_CONCURRENT_INFERENCE. Rút ngắn ở đây là lưới an toàn
+//	                         cho cấu hình lệch, không phải đường đi thiết kế.
+func backpressureRetryDelay(n int, err error, task *asynq.Task) time.Duration {
+	overloaded := errors.Is(err, worker.ErrEngineBusy)
+	var engErr *domain.EngineError
+	if errors.As(err, &engErr) && engErr.Code == domain.EngErrModelOverloaded {
+		overloaded = true
+	}
+	if !overloaded {
+		return asynq.DefaultRetryDelayFunc(n, err, task)
+	}
+	// Lùi nhẹ và có nhiễu: nhiều job cùng bị chặn phải quay lại lệch nhau, nếu không
+	// chúng sẽ đồng loạt dội vào engine cùng một khoảnh khắc rồi cùng bị chặn tiếp.
+	base := time.Duration(1+n) * time.Second
+	if base > 10*time.Second {
+		base = 10 * time.Second
+	}
+	return base + time.Duration(rand.IntN(1000))*time.Millisecond
+}
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
@@ -51,6 +90,7 @@ func main() {
 			"default":  3,
 			"low":      1,
 		},
+		RetryDelayFunc: asynq.RetryDelayFunc(backpressureRetryDelay),
 		// Không có ErrorHandler thì task lỗi bị NUỐT HOÀN TOÀN: asynq retry âm thầm,
 		// job nằm mãi ở trạng thái processing, client poll mãi không có kết quả, và
 		// log không ghi một dòng nào. Đây là lỗi vận hành tệ nhất — hỏng mà im lặng.
@@ -110,7 +150,8 @@ func main() {
 
 	gate := service.NewPracticeGate(pool, rdb, cfg, inspector)
 
-	worker.RegisterHandlers(mux, pool, audioStore, engine, ttsProvider, enqueuer, gate)
+	engineGate := worker.NewEngineGate(cfg.Engine.Concurrency, cfg.Engine.AcquireTimeout)
+	worker.RegisterHandlers(mux, pool, audioStore, engine, ttsProvider, enqueuer, gate, engineGate)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
