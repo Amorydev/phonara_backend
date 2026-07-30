@@ -78,6 +78,47 @@ check_file() {
 		fi
 	fi
 
+	# Ba biến engine đều CÓ mặc định trong viper, nên VẮNG MẶT là hợp lệ. Chỉ giá trị đặt
+	# tường minh mà sai mới bị chặn — đúng như validate() xử lý.
+	conc=$(get PRONUNCIATION_ENGINE_CONCURRENCY "$file")
+	if [ -n "$conc" ]; then
+		if ! echo "$conc" | grep -qE '^[0-9]+$' || [ "$conc" -lt 1 ]; then
+			fail "PRONUNCIATION_ENGINE_CONCURRENCY=$conc phải là số nguyên ≥ 1"; ok=0
+		fi
+	fi
+
+	for key in PRONUNCIATION_ENGINE_TIMEOUT PRONUNCIATION_ENGINE_ACQUIRE_TIMEOUT; do
+		val=$(get "$key" "$file")
+		if [ -n "$val" ] && ! echo "$val" | grep -qE '^([0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h))+$'; then
+			fail "$key=$val không phải khoảng thời gian Go hợp lệ (ví dụ 45s, 2m)"; ok=0
+		fi
+	done
+
+	# ── An toàn TRIỂN KHAI — KHÔNG sao chép từ validate() ─────────────────────
+	#
+	# COMPOSE_FILE không phải biến của Go config, nó là cơ chế của docker compose. Nhưng
+	# thiếu nó trên server production gây hậu quả NGHIÊM TRỌNG HƠN mọi luật ở trên, nên
+	# chỗ của nó là ở đây.
+	#
+	# Đã xảy ra thật: `.env` production thiếu COMPOSE_FILE, `docker compose up -d` không
+	# tham số rơi về `docker-compose.yml` (bản dev), và Postgres 5432 + Redis 6379 (KHÔNG
+	# mật khẩu) + MinIO 9000/9001 publish thẳng ra 0.0.0.0 của một VPS công khai. Mật khẩu
+	# trong file dev nằm sẵn trong git, nên phải đổi toàn bộ bí mật sau đó.
+	if [ "$env_name" = "production" ]; then
+		cf=$(get COMPOSE_FILE "$file")
+		case "$cf" in
+			docker-compose.prod.yml|docker-compose.behind-proxy.yml) ;;
+			"")
+				fail "COMPOSE_FILE thiếu — 'docker compose up -d' trần sẽ dùng bản DEV và phơi Postgres/Redis/MinIO ra internet"
+				ok=0
+				;;
+			*)
+				fail "COMPOSE_FILE=$cf không phải file production (cần docker-compose.prod.yml hoặc docker-compose.behind-proxy.yml)"
+				ok=0
+				;;
+		esac
+	fi
+
 	# ── Biến docker-compose khai bắt buộc bằng `${VAR:?}` ─────────────────────
 	# Gom danh sách ra file tạm rồi duyệt: `while` sau ống dẫn chạy trong subshell nên
 	# gán biến bên trong không thoát ra ngoài được.
